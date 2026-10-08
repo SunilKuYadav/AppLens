@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { Platform } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppLens, AppLensUI } from '@applens/react-native';
@@ -14,7 +15,11 @@ AppLens.initialize({
   events: true,
   ai: true,
   aiProvider: 'lmstudio',
-  aiBaseURL: 'http://127.0.0.1:1234/v1',
+  // Base URL for the local LM Studio server.
+  // - Android emulator: 10.0.2.2 maps to the host machine's localhost
+  // - iOS simulator:    127.0.0.1 works and points at the Mac
+  // - Physical device:  use the computer's LAN IP, e.g. http://192.168.1.4:1234/v1
+  aiBaseURL: Platform.OS === 'android' ? 'http://10.0.2.2:1234/v1' : 'http://127.0.0.1:1234/v1',
   aiModel: 'qwen2.5-coder-14b-instruct',
 });
 
