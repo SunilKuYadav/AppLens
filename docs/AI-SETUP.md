@@ -44,8 +44,10 @@ file and its single responsibility.
 | `src/ai/LocalAIProvider.ts` | Stub provider. `isConfigured()` returns `false` and `chat()` throws. Used when nothing is configured. |
 | `src/ai/ContextEngine.ts` | Retrieval. Scores and selects context chunks from storage + knowledge graph, enforces a token budget, and produces a human-readable "Context used" summary. |
 | `src/ai/KnowledgeGraph.ts` | In-memory graph of the app's components/hooks/services and their dependencies. Built from a manifest; no runtime file access. |
-| `src/ai/CodeIndexer.ts` | **Node.js-only** script that parses `.ts/.tsx` files into a `GraphNode[]` manifest for the KnowledgeGraph. Never bundled into the RN app. |
+| `src/ai/CodeIndexer.ts` | **Node.js-only** regex scanner that parses `.ts/.tsx` files into a `GraphNode[]` manifest for the KnowledgeGraph. Never bundled into the RN app. |
 | `src/ai/index-project.js` | CLI wrapper around `CodeIndexer.indexProject()` — run it to produce `knowledge-graph.json`. |
+| `src/ai/AstCodeIndexer.ts` | **Node.js-only** AST indexer (TypeScript compiler API). More accurate than the regex scanner — ignores doc comments, names real exports. Never bundled into the RN app. |
+| `src/ai/index-project-ast.js` | CLI wrapper around `AstCodeIndexer` — the recommended way to produce `knowledge-graph.json`. |
 | `src/types/AITypes.ts` | Types: `AIProviderType`, `AIMessage`, `AIConversation`, `ContextChunk`. |
 | `src/core/AppLensConfig.ts` | Config shape + defaults, including all `ai*` fields. |
 | `src/core/AppLens.ts` | Singleton. Holds config + storage + knowledge graph; exposes `loadKnowledgeGraph()` / `getKnowledgeGraph()`. |
@@ -202,12 +204,19 @@ from a manifest produced offline.
 ### Build the manifest (offline, Node.js)
 
 ```bash
+# AST variant (recommended)
+node src/ai/index-project-ast.js ./src > knowledge-graph.json
+
+# regex variant
 node src/ai/index-project.js ./src > knowledge-graph.json
 ```
 
-`CodeIndexer.indexProject()` walks `.ts/.tsx` files, classifies each
+`CodeIndexer.indexProject()` (regex) walks `.ts/.tsx` files, classifies each
 (`classifyFile`), and extracts component/hook/service/class names and relative
 imports via regex (`COMPONENT_RE`, `HOOK_RE`, `SERVICE_CLASS_RE`, `IMPORT_RE`).
+`AstCodeIndexer` does the same classification but resolves declarations and
+imports through the TypeScript compiler API, so it ignores doc comments and
+names real exports instead of filename-basename fallbacks.
 
 ### Load it into the app at startup
 
@@ -322,5 +331,5 @@ where to add it.
 
 ---
 
-_Last updated for `@applens/react-native` 0.2.1. Verify file paths against
+_Last updated for `@applens/react-native` 0.3.1. Verify file paths against
 `src/ai/` if the version has moved on._

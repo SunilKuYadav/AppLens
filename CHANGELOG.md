@@ -5,6 +5,44 @@ All notable changes to `@applens/react-native` are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1]
+
+### Added
+
+- **Real build step.** A `tsconfig.build.json` and an npm `prepare` hook so
+  git-URL installs auto-compile the TypeScript sources to `dist/` (compiled
+  JavaScript + `.d.ts` declarations) on install. A `files` field now ships
+  `dist`, `README.md`, and `CHANGELOG.md`.
+- **Release automation.** `scripts/sync-version.js` plus `preversion` /
+  `version` / `postversion` npm lifecycle hooks, so a single
+  `npm version patch|minor|major` type-checks, bumps `package.json`, syncs the
+  hardcoded `getVersion()` string, creates the version commit and `vX.Y.Z` tag,
+  and pushes with `--follow-tags`.
+
+### Changed
+
+- `main` / `types` now point at `dist/index.js` / `dist/index.d.ts` (was
+  `src/index.ts`). The package no longer ships raw TypeScript.
+- Consumption is via a **git tag over HTTPS**
+  (`git+https://github.com/SunilKuYadav/AppLens.git#v0.3.1`) rather than a
+  `file:` dependency; the `prepare` hook builds `dist/` on the consumer at
+  install time.
+
+## [0.3.0]
+
+### Added
+
+- **AST-based CodeIndexer variant** (`src/ai/AstCodeIndexer.ts` + CLI
+  `src/ai/index-project-ast.js`) built on the TypeScript compiler API, kept
+  alongside the existing regex `CodeIndexer.ts`. It is more accurate: it ignores
+  doc comments and names real exports instead of falling back to filename
+  basenames / phantom nodes.
+
+### Changed
+
+- `typescript` promoted to a **runtime** dependency (needed by the AST indexer
+  and, from 0.3.1, by the install-time `prepare` build).
+
 ## [0.2.1]
 
 ### Added

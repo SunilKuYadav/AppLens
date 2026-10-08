@@ -10,10 +10,23 @@
 
 ### 1.1 Install
 
+AppLens is consumed as a git-tag dependency over HTTPS. Add it to your
+`package.json` and install — npm clones the tag and runs the `prepare` hook,
+which compiles the package to `dist/` on install.
+
+```json
+// package.json
+{
+  "dependencies": {
+    "@applens/react-native": "git+https://github.com/SunilKuYadav/AppLens.git#v0.3.1"
+  }
+}
+```
+
 ```bash
-npm install @applens/react-native
+npm install
 # or
-yarn add @applens/react-native
+yarn install
 ```
 
 ### 1.2 Initialize once, at app startup
@@ -123,8 +136,15 @@ Without the graph the AI knows your *runtime* but not your *structure*. Build a
 manifest offline and load it at startup so the AI can reason about
 components/hooks/services and their dependencies.
 
+After a git-tag install with the build step, the compiled CLIs live under
+`dist/ai/`. Prefer the AST variant (`index-project-ast.js`) — it uses the
+TypeScript compiler API and is more accurate than the regex `index-project.js`.
+
 ```bash
-# offline, in CI or locally
+# offline, in CI or locally — AST variant (recommended)
+node node_modules/@applens/react-native/dist/ai/index-project-ast.js ./src > applens-graph.json
+
+# regex variant
 node node_modules/@applens/react-native/dist/ai/index-project.js ./src > applens-graph.json
 ```
 
@@ -263,4 +283,4 @@ add (`OpenAIProvider.chat()` + a new `Tools.ts` reading from
 
 ---
 
-_Last updated for `@applens/react-native` 0.2.1._
+_Last updated for `@applens/react-native` 0.3.1._

@@ -1,6 +1,6 @@
 # AppLens
 
-> `@applens/react-native` — v0.2.1
+> `@applens/react-native` — v0.3.1
 
 A developer-focused debugging, observability, and AI-analysis library for React Native applications. AppLens runs an in-app developer console where you inspect network requests, console logs, application events, and runtime errors, and where you can ask an AI assistant grounded questions about what your app actually did at runtime.
 
@@ -12,15 +12,15 @@ AppLens is intentionally generic — it carries no assumptions about any particu
 
 ## Installation
 
-### 1. Add the dependency
+### Add the dependency
 
-For local development, point your app's `package.json` at the AppLens source folder:
+AppLens is consumed as a **git-tag dependency over HTTPS**. Point your app's `package.json` at the tagged release:
 
 ```json
 // package.json
 {
   "dependencies": {
-    "@applens/react-native": "file:../AppLens"
+    "@applens/react-native": "git+https://github.com/SunilKuYadav/AppLens.git#v0.3.1"
   }
 }
 ```
@@ -33,27 +33,11 @@ npm install
 yarn install
 ```
 
-AppLens ships raw TypeScript (no build step — `main` and `types` both point at `src/index.ts`). Its only runtime dependencies are `openai` and `react-native-markdown-display`. `react` (>=18) and `react-native` (>=0.71) are peer dependencies.
+On install, npm clones the tag and runs the package's `prepare` hook, which compiles the TypeScript sources to `dist/` automatically. You get compiled JavaScript plus type declarations — `main` points at `dist/index.js` and `types` at `dist/index.d.ts`. **No tsconfig path mapping is required**; types resolve automatically from `dist/index.d.ts`.
 
-### 2. Add path mapping in tsconfig.json
+Runtime dependencies are `openai`, `react-native-markdown-display`, and `typescript` (the last is needed by the `prepare` build that runs at install time). `react` (>=18) and `react-native` (>=0.71) are peer dependencies.
 
-Because the package entry points at `src/index.ts`, map the package name to the source so TypeScript resolves types without a build step:
-
-```json
-{
-  "compilerOptions": {
-    "paths": {
-      "@applens/react-native": ["../AppLens/src/index.ts"]
-    }
-  },
-  "include": [
-    "**/*.ts",
-    "**/*.tsx",
-    "../AppLens/src/**/*.ts",
-    "../AppLens/src/**/*.tsx"
-  ]
-}
-```
+> **Local library development.** If you are working on AppLens itself, run `npm run build` / `npm run type-check` in the package. The Example app consumes the same git tag; for a tighter edit loop you *may* use a `file:` dependency locally, but the git tag is the supported install path.
 
 ---
 
@@ -154,7 +138,7 @@ import { AppLens } from '@applens/react-native';
 AppLens.initialize(config);              // configure and start AppLens
 AppLens.trackEvent(name, props?);        // record a custom event
 AppLens.isEnabled();                     // true when initialized and enabled
-AppLens.getVersion();                    // '0.2.1'
+AppLens.getVersion();                    // '0.3.1'
 AppLens.getConfig();                     // read-only copy of the active config
 AppLens.getStorage();                    // the shared AppLensStorage instance
 AppLens.loadKnowledgeGraph(manifest);    // load a GraphNode[] source manifest
@@ -199,7 +183,7 @@ Detaches all interceptors (network, console, errors), clears every data store (n
 
 ### `AppLens.getVersion()`
 
-Returns the library version string (`'0.2.1'`).
+Returns the library version string (`'0.3.1'`).
 
 ---
 
@@ -395,11 +379,19 @@ Chunks are selected by keyword + recency ranking and kept under an ~8000-token b
 
 ### Code intelligence (knowledge graph)
 
-AppLens can correlate runtime activity with your source structure using a pre-built knowledge graph. The Code Indexer is a Node-only script that scans your `.ts`/`.tsx` files and emits a `GraphNode[]` manifest:
+AppLens can correlate runtime activity with your source structure using a pre-built knowledge graph. The Code Indexer is a Node-only tool that scans your `.ts`/`.tsx` files and emits a `GraphNode[]` manifest. There are two variants:
+
+- **Regex indexer** (`index-project.js`) — the original heuristic scanner.
+- **AST indexer** (`index-project-ast.js`) — uses the TypeScript compiler API, so it correctly ignores doc comments and names real exports instead of falling back to filename basenames. More accurate; prefer it.
+
+After a git-tag install the compiled CLIs live under `dist/ai/`:
 
 ```sh
-# from the AppLens package root
-node src/ai/index-project.js path/to/your/src > graph.json
+# AST variant (recommended)
+node node_modules/@applens/react-native/dist/ai/index-project-ast.js path/to/your/src > graph.json
+
+# regex variant
+node node_modules/@applens/react-native/dist/ai/index-project.js path/to/your/src > graph.json
 ```
 
 Load the manifest at startup:
@@ -411,7 +403,7 @@ import { AppLens, GraphNode } from '@applens/react-native';
 AppLens.loadKnowledgeGraph(graph as GraphNode[]);
 ```
 
-The indexer is a **regex/heuristic** scanner (not an AST parser): it classifies files as screen/component/hook/service/store/api, extracts top-level entity names, and derives dependencies from relative imports. Treat its output as a best-effort map, not a precise call graph.
+Both indexers classify files as screen/component/hook/service/store/api, extract top-level entity names, and derive dependencies from relative imports. The regex variant is best-effort; the AST variant resolves declarations and imports through the compiler for a more precise map.
 
 ---
 
@@ -460,7 +452,9 @@ Source layout:
     │   ├── KnowledgeGraph.ts
     │   ├── ContextEngine.ts
     │   ├── CodeIndexer.ts      # Node-only regex/heuristic indexer
-    │   └── index-project.js    # CLI wrapper around CodeIndexer
+    │   ├── index-project.js    # CLI wrapper around CodeIndexer
+    │   ├── AstCodeIndexer.ts   # Node-only AST indexer (TypeScript compiler API)
+    │   └── index-project-ast.js # CLI wrapper around AstCodeIndexer
     ├── types/                  # NetworkTypes, LogTypes, EventTypes, ErrorTypes, AITypes
     ├── utils/
     │   └── redact.ts           # redactHeaders / redactFields
@@ -487,8 +481,28 @@ Types: `AppLensConfig`, `NetworkRequest`, `LogEntry`, `LogLevel`, `AppEvent`, `A
 - **`persistLogs` and `verboseLogging` are reserved.** Both flags exist in the config but are not consumed yet — all data is in-memory and cleared on reload.
 - **The `local` AI provider is a stub.** Without `aiApiKey` (OpenAI) or an `aiBaseURL` (LM Studio), the AI tab falls back to the `local` provider, which shows a setup prompt (it does not answer).
 - **`NetworkRequest.context` is not populated.** Runtime→source correlation is planned, not implemented.
-- **Code Indexer is Node-only and heuristic.** `ai/index-project.js` runs as a build-time CLI; the in-app AI draws on the pre-built manifest and live runtime context rather than re-indexing on-device.
+- **Code Indexer is Node-only.** The CLIs (`dist/ai/index-project.js` regex, `dist/ai/index-project-ast.js` AST) run as build-time tools; the in-app AI draws on the pre-built manifest and live runtime context rather than re-indexing on-device.
 - **No automated test suite in the library.** Verification is `npx tsc --noEmit` (strict type-check). (The Example app has Jest tests.)
+
+---
+
+## Releasing (maintainers)
+
+Releases are automated through the npm `version` lifecycle. `package.json` is the single source of truth for the version. To cut a release:
+
+```sh
+npm version patch   # or minor | major
+```
+
+This runs, in order:
+
+1. `preversion` — `npm run type-check` (aborts the release if types don't pass).
+2. the version bump in `package.json`.
+3. `version` — `npm run sync-version` (rewrites the hardcoded `getVersion()` string in `src/core/AppLens.ts` to match `package.json` via `scripts/sync-version.js`), then stages that file.
+4. the version commit and the `vX.Y.Z` git tag.
+5. `postversion` — `git push --follow-tags` (pushes the branch and the tag).
+
+Consumers then bump their git-tag ref, e.g. `#v0.3.1` → `#v0.3.2`, and reinstall so the new tag is cloned and `prepare` rebuilds `dist/`.
 
 ---
 

@@ -1,6 +1,6 @@
 # AppLens — Engineering Specification & Architecture
 
-> `@applens/react-native` — v0.2.1
+> `@applens/react-native` — v0.3.1
 
 This document is the engineering reference for AppLens: the product vision, the real module architecture as it exists today, and an honest roadmap of what is Implemented, Partial, and Planned. It is the companion to the user-facing [README.md](../README.md).
 
@@ -42,7 +42,7 @@ The spec describes two cooperating parts:
               Local AI Model
 ```
 
-**Today, only the SDK side exists.** The "Developer Agent" is almost entirely Planned. The only developer-machine component that ships is the Node-only **Code Indexer** (`src/ai/CodeIndexer.ts` + `src/ai/index-project.js`), a build-time script that emits a source manifest. There is no running agent process, no filesystem bridge from the device, no git integration, and no code modification. The RN runtime never gets direct filesystem access.
+**Today, only the SDK side exists.** The "Developer Agent" is almost entirely Planned. The only developer-machine component that ships is the Node-only **Code Indexer**, which now has two variants: the original regex scanner (`src/ai/CodeIndexer.ts` + `src/ai/index-project.js`) and an AST scanner built on the TypeScript compiler API (`src/ai/AstCodeIndexer.ts` + `src/ai/index-project-ast.js`). Both are build-time tools that emit a source manifest. There is no running agent process, no filesystem bridge from the device, no git integration, and no code modification. The RN runtime never gets direct filesystem access.
 
 ---
 
@@ -69,7 +69,8 @@ The spec describes two cooperating parts:
 | Interceptors | `interceptors/NetworkInterceptor.ts`, `ConsoleInterceptor.ts`, `ErrorInterceptor.ts` | Monkey-patch XHR+fetch, `console.*`, `ErrorUtils`/Hermes rejection tracker |
 | Storage | `storage/AppLensStorage.ts`, `storage/MemoryStorage.ts` | Synchronous storage interface + in-memory ring buffer with subscribe/notify |
 | UI | `components/*`, `tabs/*` | Modal, trigger, JSON viewer, 7 tabs |
-| AI | `ai/AIProvider.ts`, `OpenAIProvider.ts`, `LocalAIProvider.ts`, `ContextEngine.ts`, `KnowledgeGraph.ts`, `CodeIndexer.ts`, `index-project.js` | Provider interface + factory, context assembly, knowledge graph, Node indexer |
+| AI | `ai/AIProvider.ts`, `OpenAIProvider.ts`, `LocalAIProvider.ts`, `ContextEngine.ts`, `KnowledgeGraph.ts`, `CodeIndexer.ts`, `index-project.js`, `AstCodeIndexer.ts`, `index-project-ast.js` | Provider interface + factory, context assembly, knowledge graph, Node indexers (regex + AST) |
+| Packaging | `tsconfig.build.json`, `scripts/sync-version.js` | Build to `dist/` via `prepare`; release automation for the npm `version` lifecycle |
 | Types | `types/NetworkTypes.ts`, `LogTypes.ts`, `EventTypes.ts`, `ErrorTypes.ts`, `AITypes.ts` | Shared data types |
 | Utils | `utils/redact.ts` | `redactHeaders` / `redactFields` |
 
@@ -173,7 +174,12 @@ Chunks are ranked by `relevanceScore` (keyword + recency heuristics) and truncat
 
 `KnowledgeGraph` is manifest-driven: it starts empty and is populated via `KnowledgeGraph.buildFromManifest(nodes)` / `AppLens.loadKnowledgeGraph(nodes)`. It supports `findByName`, `findDependencies`, `findDependents`, and `toSummary()` (grouped by node type for AI prompts).
 
-The manifest is produced by `CodeIndexer.indexProject(dir)` (via `index-project.js`). The indexer is a **regex/heuristic** scanner — despite older prose that called it "AST", it does not build an AST. It walks `.ts`/`.tsx` files, classifies each by path/name into a `NodeType`, extracts top-level entity names with regexes, and derives dependencies from relative import paths. Output quality is best-effort, not a precise call graph.
+The manifest is produced by one of two indexers:
+
+- `CodeIndexer.indexProject(dir)` (via `index-project.js`) — a **regex/heuristic** scanner. It walks `.ts`/`.tsx` files, classifies each by path/name into a `NodeType`, extracts top-level entity names with regexes, and derives dependencies from relative import paths. Output quality is best-effort, not a precise call graph.
+- `AstCodeIndexer` (via `index-project-ast.js`, added in 0.3.0) — an **AST** scanner using the TypeScript compiler API. It resolves declarations and imports through the compiler, so it ignores doc comments and names real exports instead of falling back to filename basenames / phantom nodes. More accurate; prefer it.
+
+Both are Node-only and never bundled into the RN app. After a git-tag install with the build step, the compiled CLIs live at `node_modules/@applens/react-native/dist/ai/index-project.js` and `.../dist/ai/index-project-ast.js` and run directly (no `ts-node` needed).
 
 ---
 
@@ -210,7 +216,9 @@ The manifest is produced by `CodeIndexer.indexProject(dir)` (via `index-project.
 | AI chat (OpenAI / LM Studio) | **Implemented** | Confidence line + "Context used" |
 | Context engine | **Implemented** | runtime context + graph summary, token-budgeted |
 | Knowledge graph | **Partial** | manifest-driven; empty unless loaded |
-| Code intelligence (indexer) | **Partial** | Node-only, regex/heuristic, not AST |
+| Code intelligence (indexer) | **Partial** | Node-only; regex `CodeIndexer` + AST `AstCodeIndexer` (TS compiler API, more accurate) |
+| Build / packaging (`dist`, `prepare`, git-tag install) | **Implemented** | `tsconfig.build.json` + `prepare` compile to `dist/` on install; `main`/`types` → `dist/` |
+| Release automation (`npm version` lifecycle) | **Implemented** | `scripts/sync-version.js` + preversion/version/postversion hooks |
 | Runtime→source correlation (`NetworkRequest.context`) | **Planned** | field declared, not populated |
 | AI tool-use / function calling | **Planned** | |
 | Streaming AI responses | **Planned** | |
