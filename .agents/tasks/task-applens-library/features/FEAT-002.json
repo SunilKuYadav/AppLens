@@ -1,0 +1,39 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "UI layer — AppLensProvider context, shared components, the floating trigger button, the full-screen modal with manual tab navigation, and all six tab screens (Overview, Network, NetworkDetail, Console, Events, Settings). Depends on FEAT-001 for types and AppLens singleton. Independent of FEAT-003 (AI tab content) — the AITab created here is a placeholder that FEAT-003 will fill in.",
+  "status": "pending",
+  "steps": [
+    "Create /Users/sunilkumar/Desktop/project/AppLens/AppLens/src/core/AppLensProvider.tsx — React context provider. Holds state: modalVisible (bool), activeTab (string), selectedNetworkRequest (NetworkRequest|null), selectedLogEntry (LogEntry|null). Exposes these plus setters via AppLensContext. Also subscribes to storage changes and stores networkRequests[], logs[], events[] in component state so tabs re-render on new data. Export AppLensProvider and useAppLens hook.",
+    "Create /Users/sunilkumar/Desktop/project/AppLens/AppLens/src/components/Badge.tsx — small colored pill. Props: label: string, color: string (background), textColor?: string. Uses View + Text + StyleSheet. Export Badge.",
+    "Create /Users/sunilkumar/Desktop/project/AppLens/AppLens/src/components/SearchBar.tsx — TextInput with a clear (×) button. Props: value, onChangeText, placeholder. Dark-themed (#1a1a1a background, #fff text). Export SearchBar.",
+    "Create /Users/sunilkumar/Desktop/project/AppLens/AppLens/src/components/JSONViewer.tsx — renders an arbitrary JSON value as a formatted, scrollable Text block. Props: data: unknown, maxHeight?: number. Converts value via JSON.stringify(data, null, 2). Export JSONViewer.",
+    "Create /Users/sunilkumar/Desktop/project/AppLens/AppLens/src/components/NetworkEntry.tsx — single row for network list. Props: request: NetworkRequest, onPress: () => void. Shows: method badge (GET=blue, POST=green, PUT=amber, DELETE=red, PATCH=purple), truncated URL, status code colored (2xx=green, 3xx=blue, 4xx=amber, 5xx=red, pending=grey), duration in ms. Export NetworkEntry.",
+    "Create /Users/sunilkumar/Desktop/project/AppLens/AppLens/src/components/LogEntry.tsx — single row for console log list. Props: entry: LogEntry, onPress: () => void. Shows: level badge (log=grey, info=blue, warn=amber, error=red, debug=cyan), truncated message, timestamp formatted as HH:mm:ss. Export LogEntry.",
+    "Create /Users/sunilkumar/Desktop/project/AppLens/AppLens/src/components/AppLensTrigger.tsx — floating TouchableOpacity fixed at bottom-right (position absolute, bottom 32, right 16, zIndex 9999). Shows '🔍' emoji or 'AL' text label. Semi-transparent dark background (#0d0d0dCC). On press: calls setModalVisible(true) from AppLensContext. Export AppLensTrigger.",
+    "Create /Users/sunilkumar/Desktop/project/AppLens/AppLens/src/components/AppLensModal.tsx — full-screen RN Modal (animationType='slide', transparent=false, visible=modalVisible). Dark theme throughout (#0d0d0d background). Header row with 'AppLens' title + close (×) button. Tab bar below header: horizontal ScrollView of TouchableOpacity tab items for ['Overview','Network','Console','Events','AI','Settings']. Active tab has bottom border highlight (green #00ff88). Content area below renders the active tab component. Export AppLensModal.",
+    "Create /Users/sunilkumar/Desktop/project/AppLens/AppLens/src/tabs/OverviewTab.tsx — summary dashboard. Shows counts: network requests, logs (breakdown by level), events. Shows last 3 of each category as preview rows. Shows AppLens config summary (which features are enabled). No search needed. Export OverviewTab.",
+    "Create /Users/sunilkumar/Desktop/project/AppLens/AppLens/src/tabs/NetworkTab.tsx — FlatList of NetworkRequest items rendered via NetworkEntry component. Header: count + SearchBar + filter buttons (ALL, GET, POST, PUT, DELETE, ERROR) + Clear button. Tapping a row calls setSelectedNetworkRequest and navigates to NetworkDetailScreen (managed via a local 'view' state: 'list'|'detail'). Export NetworkTab.",
+    "Create /Users/sunilkumar/Desktop/project/AppLens/AppLens/src/tabs/NetworkDetailScreen.tsx — detail view for a single NetworkRequest. Back button at top. Sections: Request (URL, method, headers table, query params parsed from URL, body via JSONViewer), Response (status, headers table, body via JSONViewer, duration), Error (if state=error: message + stack), Context (screen, hook, service, event if present). Export NetworkDetailScreen.",
+    "Create /Users/sunilkumar/Desktop/project/AppLens/AppLens/src/tabs/ConsoleTab.tsx — FlatList of LogEntry items rendered via LogEntry component. Header: count + SearchBar + level filter pills (ALL, LOG, INFO, WARN, ERROR, DEBUG) + Clear button. Tapping a row opens a detail modal (use a second Modal or an inline expanded view) showing full message, all args via JSONViewer, timestamp, and full stack trace. Export ConsoleTab.",
+    "Create /Users/sunilkumar/Desktop/project/AppLens/AppLens/src/tabs/EventsTab.tsx — FlatList of AppEvent items. Header: count + SearchBar + Clear button. Each row: event name, timestamp, property count badge. Tapping a row shows full event properties via JSONViewer in an inline expand or detail panel. Export EventsTab.",
+    "Create /Users/sunilkumar/Desktop/project/AppLens/AppLens/src/tabs/SettingsTab.tsx — scrollable list of settings rows. Each row: label on left, Switch on right. Settings: AppLens Enabled, Network Logging, Console Logging, Event Logging, AI Assistant, Persist Logs (toggle only — persisting is not implemented, just config), Verbose Logging. Reads from AppLens.getConfig(), writes back via a local state copy and calls a re-initialize-like update. Show current AI provider and model at bottom. Export SettingsTab.",
+    "Create /Users/sunilkumar/Desktop/project/AppLens/AppLens/src/tabs/AITab.tsx — placeholder for FEAT-003. Renders a centered message 'AI tab — implemented in FEAT-003'. Export AITab so AppLensModal can import it.",
+    "Update /Users/sunilkumar/Desktop/project/AppLens/AppLens/src/core/AppLensProvider.tsx to export a default <AppLens /> component (named AppLensUI) that renders both <AppLensTrigger /> and <AppLensModal /> wrapped in the AppLensProvider. This is what consumers render: <AppLens />. Update src/index.ts to export AppLensUI as 'AppLens' component export alongside the AppLens singleton."
+  ],
+  "acceptance_criteria": [
+    "AppLensModal renders with 6 tabs and correct dark theme styling",
+    "NetworkTab shows requests in a FlatList with method/status/duration, supports search and method filtering",
+    "NetworkDetailScreen shows request headers, body, response, and error sections",
+    "ConsoleTab shows log entries with level badges, supports search and level filtering",
+    "EventsTab shows events with properties",
+    "SettingsTab renders all toggle rows with functional Switch components",
+    "AppLensTrigger renders as a fixed floating button that opens the modal",
+    "Running `cd /Users/sunilkumar/Desktop/project/AppLens/AppLens && npx tsc --noEmit` exits 0"
+  ],
+  "verification": [
+    "cd /Users/sunilkumar/Desktop/project/AppLens/AppLens && npx tsc --noEmit — must exit 0 with no errors"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

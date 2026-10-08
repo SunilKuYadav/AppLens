@@ -1,0 +1,30 @@
+{
+  "name": "@applens/react-native",
+  "version": "0.1.0",
+  "description": "Developer-focused debugging and observability library for React Native applications",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "type-check": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-native": ">=0.71"
+  },
+  "dependencies": {
+    "openai": "^4.0.0"
+  },
+  "devDependencies": {
+    "@react-native/typescript-config": "^0.73.0",
+    "@types/react": "^19.3.0",
+    "@types/react-native": "^0.72.8",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "react-native",
+    "debugging",
+    "observability",
+    "developer-tools"
+  ],
+  "license": "MIT"
+}

@@ -1,0 +1,26 @@
+{
+  "project_type": "React Native npm library (AppLens) + React Native host app (Triveni Point)",
+  "language": "TypeScript (strict mode, no any)",
+  "build_system": "No bundler for the library itself — it ships raw TypeScript source under src/. Triveni Point uses @react-native/babel-preset + babel-plugin-module-resolver; the library is consumed via 'file:../applens' path in package.json. No compile step needed before use — Metro resolves src/index.ts directly.",
+  "test_framework": "Jest (triveni-point uses jest with @react-native/jest-preset). AppLens library has no test runner configured in this iteration — verification is done by confirming the host app builds without type errors.",
+  "build_command": "cd /Users/sunilkumar/Desktop/project/AppLens/triveni-point && npx tsc --noEmit",
+  "test_command": "cd /Users/sunilkumar/Desktop/project/AppLens/triveni-point && yarn test (or npm test) -- but primary verification is tsc --noEmit passing",
+  "verification_instructions": "1. Create library files at /Users/sunilkumar/Desktop/project/AppLens/AppLens/src/. 2. After each FEAT, run `cd /Users/sunilkumar/Desktop/project/AppLens/triveni-point && npx tsc --noEmit` to confirm no type errors. 3. For FEAT-004, also run `cd /Users/sunilkumar/Desktop/project/AppLens/triveni-point && yarn start` briefly to confirm Metro resolves the module without error.",
+  "snapshot_or_generated_files": null,
+  "environment_constraints": "macOS, zsh. Do NOT start a Metro bundler or iOS/Android build — these require simulators/devices. Verification is tsc --noEmit only. The library path is /Users/sunilkumar/Desktop/project/AppLens/AppLens/ (macOS case-insensitive FS: 'AppLens' and 'applens' are the same directory). Always use the ABSOLUTE path /Users/sunilkumar/Desktop/project/AppLens/AppLens/ when creating files.",
+  "contribution_requirements": "AppLens library must: use ONLY React Native core components (View, Text, ScrollView, FlatList, TextInput, Modal, TouchableOpacity, Switch, Pressable, StyleSheet) — no external UI libs. Use openai npm package as the only external dep beyond RN peer deps. No react-navigation — manual tab state. Strict TypeScript throughout. Sensitive headers (Authorization, Cookie, x-api-key, x-auth-token) must be redacted by default. Only additive changes to triveni-point — never break existing app.",
+  "key_patterns": "Triveni Point patterns to follow: (1) Service functions are plain async functions (not classes) exported from files like login.api.ts. (2) Store slices use Redux Toolkit. (3) App uses axios via API = axios.create() in axios-manager.ts with interceptors in axios-provider.ts — AppLens NetworkInterceptor must monkey-patch XHR/fetch globally, NOT axios, to work across any RN app. (4) App uses __DEV__ flag for dev-only code. (5) Firebase auth token is attached as 'Authorization: Bearer ...' header — must be redacted by AppLens. (6) Dark theme uses #0C0A09 background, #1C1917 surface — AppLens uses its OWN dark theme (#0d0d0d / #1a1a1a) independently. (7) App.tsx is a simple provider stack — AppLens wraps as a sibling after SafeAreaProvider. (8) babel.config.js uses module-resolver with @components, @screens etc aliases — AppLens does NOT use these.",
+  "relevant_files": [
+    "/Users/sunilkumar/Desktop/project/AppLens/triveni-point/App.tsx",
+    "/Users/sunilkumar/Desktop/project/AppLens/triveni-point/package.json",
+    "/Users/sunilkumar/Desktop/project/AppLens/triveni-point/tsconfig.json",
+    "/Users/sunilkumar/Desktop/project/AppLens/triveni-point/babel.config.js",
+    "/Users/sunilkumar/Desktop/project/AppLens/triveni-point/src/services/axios-provider.ts",
+    "/Users/sunilkumar/Desktop/project/AppLens/triveni-point/src/services/axios-manager.ts",
+    "/Users/sunilkumar/Desktop/project/AppLens/triveni-point/src/services/api/endpoint.ts",
+    "/Users/sunilkumar/Desktop/project/AppLens/triveni-point/src/navigations/root-navigator.tsx",
+    "/Users/sunilkumar/Desktop/project/AppLens/triveni-point/src/store/index.ts",
+    "/Users/sunilkumar/Desktop/project/AppLens/AppLens/.agents/tasks/task-applens-library/context.json"
+  ],
+  "directory_structure": "triveni-point/src/ has: components/ (shared UI atoms), config/ (api.config.ts, enums), hooks/ (3 hooks), navigations/ (drawer+tab+stack navigators using react-navigation), screens/ (auth, explore, home, space, tp-chat-bot), services/ (api/, axios-manager.ts, axios-provider.ts, firebase/, hooks/, local-responses/, query-client.ts, validation/), store/ (Redux slices: auth, settings, theme, language, math, english, chat-sessions, etc.), types/, utils/ (theme system, storage, i18n). AppLens library lives at /Users/sunilkumar/Desktop/project/AppLens/AppLens/ (currently empty except .git)."
+}

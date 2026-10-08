@@ -1,0 +1,26 @@
+{
+  "id": "FEAT-004",
+  "type": "feat",
+  "description": "Integrate AppLens into the Triveni Point host application. Additive-only changes: add the library as a local file: dependency, initialize AppLens in App.tsx, and render the <AppLens /> component. Also write the library README. Depends on FEAT-001, FEAT-002, FEAT-003. This is the final integration FEAT.",
+  "status": "pending",
+  "steps": [
+    "Add '@applens/react-native': 'file:../AppLens' to the 'dependencies' section of /Users/sunilkumar/Desktop/project/AppLens/triveni-point/package.json. No other changes to package.json.",
+    "Update /Users/sunilkumar/Desktop/project/AppLens/triveni-point/tsconfig.json to add a path mapping for '@applens/react-native': ['../AppLens/src/index.ts'] under compilerOptions.paths, and add '../AppLens' under 'include' so TypeScript can resolve the library types.",
+    "Update /Users/sunilkumar/Desktop/project/AppLens/triveni-point/App.tsx: (1) add import at top: `import { AppLens as AppLensDebugger, AppLens as AppLensSingleton } from '@applens/react-native';` — actually use cleaner naming: import the component as AppLensDebugUI and the singleton as AppLensDebug. Initialize in a useEffect or top-level call BEFORE the return: call `AppLensDebug.initialize({ enabled: __DEV__, network: true, console: true, events: true, ai: true, projectRoot: '/Users/sunilkumar/Desktop/project/AppLens/triveni-point' })`. Render `{__DEV__ && <AppLensDebugUI />}` as the LAST child inside SafeAreaProvider, after RootNavigator. This is purely additive. NOTE: the barrel export from src/index.ts exports the singleton as 'AppLens' (the class instance) and the React component as a separate named export. Make sure naming is unambiguous — use the exact export names from FEAT-001/002 index.ts.",
+    "Run `cd /Users/sunilkumar/Desktop/project/AppLens/triveni-point && npm install` (or yarn install) to link the local package.",
+    "Run `cd /Users/sunilkumar/Desktop/project/AppLens/triveni-point && npx tsc --noEmit` to confirm the integration type-checks cleanly.",
+    "Create /Users/sunilkumar/Desktop/project/AppLens/AppLens/README.md documenting: what AppLens is, installation (file: path + npm install), initialization API (AppLens.initialize options table), the <AppLens /> component usage, AppLens.trackEvent API, how to configure the AI key, list of tabs and what they show, the KnowledgeGraph/CodeIndexer pattern for AI code awareness."
+  ],
+  "acceptance_criteria": [
+    "triveni-point/package.json dependencies includes '@applens/react-native': 'file:../AppLens'",
+    "triveni-point/App.tsx calls AppLens.initialize() and renders <AppLens /> conditionally on __DEV__",
+    "triveni-point/tsconfig.json resolves '@applens/react-native' to the library source",
+    "Running `cd /Users/sunilkumar/Desktop/project/AppLens/triveni-point && npx tsc --noEmit` exits 0 — no type errors in either the library or the host app",
+    "README.md exists at /Users/sunilkumar/Desktop/project/AppLens/AppLens/README.md"
+  ],
+  "verification": [
+    "cd /Users/sunilkumar/Desktop/project/AppLens/triveni-point && npm install && npx tsc --noEmit — must exit 0"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

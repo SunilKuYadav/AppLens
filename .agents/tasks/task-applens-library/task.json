@@ -1,0 +1,7 @@
+{
+  "task_id": "task-applens-library",
+  "task_description": "Build AppLens — a developer-focused debugging and observability npm library for React Native. The library provides an in-app developer console with Network, Console, Events, AI, Overview, and Settings tabs rendered as a floating button + full-screen modal. It ships as @applens/react-native at /Users/sunilkumar/Desktop/project/AppLens/AppLens/ and integrates into the Triveni Point app at /Users/sunilkumar/Desktop/project/AppLens/triveni-point/.",
+  "status": "pending",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004"],
+  "blocked_reason": null
+}
