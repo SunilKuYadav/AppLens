@@ -90,7 +90,7 @@ class AppLensClass {
 
   /** Return the AppLens library version. */
   getVersion(): string {
-    return '0.3.0';
+    return '0.3.1';
   }
 
   /** Return the active configuration (read-only copy). */
