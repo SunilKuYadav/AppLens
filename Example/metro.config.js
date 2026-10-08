@@ -44,6 +44,8 @@ const config = {
 
       // openai — stubbed out (AI disabled, real SDK needs Node.js shims)
       openai: path.resolve(__dirname, 'shims/openai.js'),
+      // markdown renderer used by AITab
+      'react-native-markdown-display': nm('react-native-markdown-display'),
     },
 
     blockList: [

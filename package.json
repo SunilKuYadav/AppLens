@@ -5,14 +5,19 @@
   "main": "src/index.ts",
   "types": "src/index.ts",
   "scripts": {
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "example": "npm --prefix Example start",
+    "example:start": "npm --prefix Example start",
+    "example:ios": "npm --prefix Example run ios",
+    "example:android": "npm --prefix Example run android"
   },
   "peerDependencies": {
     "react": ">=18",
     "react-native": ">=0.71"
   },
   "dependencies": {
-    "openai": "^4.0.0"
+    "openai": "^4.0.0",
+    "react-native-markdown-display": "7.0.2"
   },
   "devDependencies": {
     "@react-native/typescript-config": "^0.73.0",

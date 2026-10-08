@@ -10,6 +10,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import Markdown from 'react-native-markdown-display';
 import { AppLens } from '../core/AppLens';
 import { AIMessage } from '../types/AITypes';
 import { AIProvider, createAIProvider } from '../ai/AIProvider';
@@ -57,14 +58,13 @@ function MessageBubble({ message }: BubbleProps): React.JSX.Element {
           isUser ? styles.userBubble : styles.assistantBubble,
         ]}
       >
-        <Text
-          style={[
-            styles.bubbleText,
-            isUser ? styles.userText : styles.assistantText,
-          ]}
-        >
-          {message.content}
-        </Text>
+        {isUser ? (
+          <Text style={[styles.bubbleText, styles.userText]}>
+            {message.content}
+          </Text>
+        ) : (
+          <Markdown style={markdownStyles}>{message.content}</Markdown>
+        )}
         <Text
           style={[
             styles.bubbleTime,
@@ -274,6 +274,70 @@ export function AITab(): React.JSX.Element {
     </KeyboardAvoidingView>
   );
 }
+
+// ─── Markdown styles (for assistant bubbles) ──────────────────────────────────
+
+const markdownStyles = {
+  body: {
+    color: '#e8e8e8',
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  paragraph: {
+    marginTop: 0,
+    marginBottom: 6,
+    color: '#e8e8e8',
+  },
+  heading1: { color: '#00ff88', fontSize: 18, fontWeight: '700' as const, marginBottom: 6 },
+  heading2: { color: '#00ff88', fontSize: 16, fontWeight: '700' as const, marginBottom: 4 },
+  heading3: { color: '#00ff88', fontSize: 14, fontWeight: '700' as const, marginBottom: 4 },
+  strong: { color: '#ffffff', fontWeight: '700' as const },
+  em: { color: '#aaaaaa', fontStyle: 'italic' as const },
+  code_inline: {
+    backgroundColor: '#0d0d0d',
+    color: '#00ff88',
+    borderRadius: 4,
+    paddingHorizontal: 4,
+    fontSize: 13,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  fence: {
+    backgroundColor: '#0d0d0d',
+    borderRadius: 8,
+    padding: 12,
+    marginVertical: 6,
+    borderWidth: 1,
+    borderColor: '#2a2a2a',
+  },
+  code_block: {
+    backgroundColor: '#0d0d0d',
+    borderRadius: 8,
+    padding: 12,
+    marginVertical: 6,
+    color: '#00ff88',
+    fontSize: 13,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  bullet_list: { marginVertical: 4 },
+  ordered_list: { marginVertical: 4 },
+  list_item: { color: '#e8e8e8', marginBottom: 2 },
+  bullet_list_icon: { color: '#00ff88' },
+  ordered_list_icon: { color: '#00ff88' },
+  blockquote: {
+    backgroundColor: '#1a1a1a',
+    borderLeftWidth: 3,
+    borderLeftColor: '#00ff88',
+    paddingLeft: 10,
+    marginVertical: 6,
+    opacity: 0.85,
+  },
+  hr: { borderColor: '#2a2a2a', marginVertical: 8 },
+  link: { color: '#00ff88', textDecorationLine: 'underline' as const },
+  table: { borderColor: '#2a2a2a', marginVertical: 6 },
+  th: { backgroundColor: '#1a1a1a', color: '#00ff88', fontWeight: '700' as const },
+  td: { color: '#e8e8e8' },
+};
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 

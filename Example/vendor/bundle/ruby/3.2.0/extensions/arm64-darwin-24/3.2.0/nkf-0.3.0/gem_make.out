@@ -1,0 +1,30 @@
+current directory: /Users/sunilkumar/Desktop/project/AppLens/AppLens/Example/vendor/bundle/ruby/3.2.0/gems/nkf-0.3.0/ext/nkf
+/Users/sunilkumar/.rbenv/versions/3.2.2/bin/ruby extconf.rb
+creating Makefile
+
+current directory: /Users/sunilkumar/Desktop/project/AppLens/AppLens/Example/vendor/bundle/ruby/3.2.0/gems/nkf-0.3.0/ext/nkf
+make DESTDIR\= sitearchdir\=./.gem.20261008-9980-3mlihv sitelibdir\=./.gem.20261008-9980-3mlihv clean
+
+current directory: /Users/sunilkumar/Desktop/project/AppLens/AppLens/Example/vendor/bundle/ruby/3.2.0/gems/nkf-0.3.0/ext/nkf
+make DESTDIR\= sitearchdir\=./.gem.20261008-9980-3mlihv sitelibdir\=./.gem.20261008-9980-3mlihv
+compiling nkf.c
+In file included from nkf.c:14:
+In file included from /Users/sunilkumar/.rbenv/versions/3.2.2/include/ruby-3.2.0/ruby/ruby.h:28:
+In file included from /Users/sunilkumar/.rbenv/versions/3.2.2/include/ruby-3.2.0/ruby/internal/arithmetic.h:24:
+In file included from /Users/sunilkumar/.rbenv/versions/3.2.2/include/ruby-3.2.0/ruby/internal/arithmetic/char.h:29:
+/Users/sunilkumar/.rbenv/versions/3.2.2/include/ruby-3.2.0/ruby/internal/core/rstring.h:465:24: warning: default initialization of an object of type 'struct RString' with const member leaves the object uninitialized [-Wdefault-const-init-field-unsafe]
+  465 |         struct RString retval;
+      |                        ^
+/Users/sunilkumar/.rbenv/versions/3.2.2/include/ruby-3.2.0/ruby/internal/core/rbasic.h:88:17: note: member 'klass' declared 'const' here
+   88 |     const VALUE klass;
+      |                 ^
+1 warning generated.
+linking shared-object nkf.bundle
+ld: warning: ignoring duplicate libraries: '-lruby.3.2'
+
+current directory: /Users/sunilkumar/Desktop/project/AppLens/AppLens/Example/vendor/bundle/ruby/3.2.0/gems/nkf-0.3.0/ext/nkf
+make DESTDIR\= sitearchdir\=./.gem.20261008-9980-3mlihv sitelibdir\=./.gem.20261008-9980-3mlihv install
+/usr/bin/install -c -m 0755 nkf.bundle ./.gem.20261008-9980-3mlihv
+
+current directory: /Users/sunilkumar/Desktop/project/AppLens/AppLens/Example/vendor/bundle/ruby/3.2.0/gems/nkf-0.3.0/ext/nkf
+make DESTDIR\= sitearchdir\=./.gem.20261008-9980-3mlihv sitelibdir\=./.gem.20261008-9980-3mlihv clean
