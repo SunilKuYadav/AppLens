@@ -13,10 +13,13 @@ export class OpenAIProvider implements AIProvider {
   private readonly client: OpenAI;
   private readonly model: string;
   private readonly apiKey: string;
+  private readonly baseURL: string;
 
   constructor(apiKey: string, model: string = 'gpt-4o', baseURL?: string) {
     this.apiKey = apiKey;
     this.model = model;
+    // Keep the resolved base URL on the instance so error messages can name it.
+    this.baseURL = baseURL ?? 'https://api.openai.com/v1';
     this.client = new OpenAI({
       apiKey: apiKey || 'lm-studio', // LM Studio ignores the key but the SDK requires a non-empty string
       ...(baseURL ? { baseURL } : {}),
@@ -62,6 +65,11 @@ export class OpenAIProvider implements AIProvider {
     } catch (err: unknown) {
       const base = 'AppLens AI: OpenAI request failed';
       if (err instanceof Error) {
+        // When the request never reached the server AND we're pointed at a
+        // local/loopback host, surface an actionable, platform-specific hint.
+        if (this.isConnectionError(err.message) && this.isLocalHost()) {
+          throw new Error(this.buildConnectionHelp());
+        }
         throw new Error(`${base} — ${err.message}`);
       }
       throw new Error(`${base}.`);
@@ -69,6 +77,71 @@ export class OpenAIProvider implements AIProvider {
   }
 
   // ─── Private helpers ──────────────────────────────────────────────────────
+
+  /**
+   * Detect a failure where the request never reached the server. React Native
+   * fetch surfaces these as 'Network request failed'; the openai SDK may wrap
+   * them as an APIConnectionError whose message contains 'Connection error'.
+   */
+  private isConnectionError(message: string): boolean {
+    const m = message.toLowerCase();
+    return (
+      m.includes('network request failed') ||
+      m.includes('connection error') ||
+      m.includes('failed to fetch') ||
+      m.includes('econnrefused')
+    );
+  }
+
+  /**
+   * Parse the host/port out of this.baseURL with a tolerant, dependency-free
+   * approach. The global URL may not exist in all RN runtimes, so we use a
+   * regex rather than the URL constructor.
+   */
+  private parseHostPort(): { host: string; port: string } {
+    const match = /^[a-z][a-z0-9+.-]*:\/\/([^/:?#]+)(?::(\d+))?/i.exec(
+      this.baseURL,
+    );
+    const host = match?.[1] ?? '';
+    const port = match?.[2] ?? '';
+    return { host, port };
+  }
+
+  /**
+   * True when the resolved base URL points at a loopback / LAN host:
+   * 127.0.0.1, localhost, 10.0.2.2, a 192.168.* address, or a 10.* address.
+   */
+  private isLocalHost(): boolean {
+    const { host } = this.parseHostPort();
+    if (host.length === 0) {
+      return false;
+    }
+    return (
+      host === '127.0.0.1' ||
+      host === 'localhost' ||
+      host === '10.0.2.2' ||
+      host.startsWith('192.168.') ||
+      host.startsWith('10.')
+    );
+  }
+
+  /**
+   * Build a concise, multi-line, actionable message explaining the common
+   * local-LLM connectivity traps (emulator loopback, LM Studio binding,
+   * cleartext http) and the correct per-platform base URL.
+   */
+  private buildConnectionHelp(): string {
+    const { port } = this.parseHostPort();
+    const resolvedPort = /^\d+$/.test(port) ? port : '1234';
+    return [
+      `Cannot reach the AI server at ${this.baseURL}.`,
+      `• Android emulator: use http://10.0.2.2:${resolvedPort}/v1 instead of 127.0.0.1 — 127.0.0.1 is the emulator itself, not your computer.`,
+      `• iOS simulator: 127.0.0.1 works and points at your Mac.`,
+      `• Physical device: use your computer's LAN IP (e.g. http://192.168.x.x:${resolvedPort}/v1).`,
+      `• Make sure LM Studio is running and 'Serve on Local Network' is enabled so it binds 0.0.0.0, not just localhost.`,
+      `• On Android, cleartext http may be blocked — ensure usesCleartextTraffic is allowed in the debug manifest.`,
+    ].join('\n');
+  }
 
   /**
    * Build a system prompt by prepending a developer-expert persona and then

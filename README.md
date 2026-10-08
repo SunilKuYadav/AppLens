@@ -271,6 +271,30 @@ AppLens.initialize({
 - **lmstudio** — points at a local LM Studio server via `aiBaseURL`; no API key required.
 - **local** — a stub provider that works without any backend and returns canned guidance.
 
+### Connecting to a local LLM (LM Studio)
+
+When running against a local LM Studio server, the correct base URL depends on where the app runs. On an Android emulator, `127.0.0.1` refers to the emulator itself — not your computer — so the emulator must reach the host via `10.0.2.2`.
+
+| Platform | Base URL |
+| --- | --- |
+| iOS simulator | `http://127.0.0.1:1234/v1` |
+| Android emulator | `http://10.0.2.2:1234/v1` |
+| Physical device | `http://<your-computer-LAN-IP>:1234/v1` |
+
+- Enable **'Serve on Local Network'** in LM Studio so it binds `0.0.0.0` rather than only localhost. Without this, emulator and device connections fail even with the right base URL.
+- Android debug builds may need cleartext `http` traffic allowed (ensure `usesCleartextTraffic` is enabled in the debug manifest).
+
+Android emulator example:
+
+```ts
+AppLens.initialize({
+  ai: true,
+  aiProvider: 'lmstudio',
+  aiModel: 'qwen2.5-coder-14b-instruct',
+  aiBaseURL: 'http://10.0.2.2:1234/v1',
+});
+```
+
 > **Security note:** Never hard-code your API key in source control. Use environment variables or a secrets manager and inject the key at build time. API keys are never written to logs.
 
 ### AI context and code awareness

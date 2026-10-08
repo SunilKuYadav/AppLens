@@ -167,6 +167,9 @@ function SetupPrompt(): React.JSX.Element {
           {"AppLens.initialize({\n  ai: true,\n  aiProvider: 'lmstudio',\n  // optional — defaults to http://127.0.0.1:1234/v1\n  aiBaseURL: 'http://127.0.0.1:1234/v1',\n});"}
         </Text>
       </View>
+      <Text style={styles.setupBody}>
+        Android emulator: use http://10.0.2.2:1234/v1 • iOS simulator: 127.0.0.1 works • Physical device: use your computer's LAN IP
+      </Text>
 
       <Text style={styles.setupSectionLabel}>Option 2 — OpenAI</Text>
       <View style={styles.codeBlock}>
