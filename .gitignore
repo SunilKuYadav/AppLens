@@ -43,6 +43,8 @@ local.properties
 *.keystore
 !Example/android/app/debug.keystore
 .kotlin/
+Example/android/app/build/
+Example/android/build/
 
 # ─── React Native / Metro ────────────────────────────────────────────────────
 *.jsbundle
