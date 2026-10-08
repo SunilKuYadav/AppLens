@@ -2,7 +2,7 @@
   "id": "FEAT-004",
   "type": "feat",
   "description": "Integrate AppLens into the Triveni Point host application. Additive-only changes: add the library as a local file: dependency, initialize AppLens in App.tsx, and render the <AppLens /> component. Also write the library README. Depends on FEAT-001, FEAT-002, FEAT-003. This is the final integration FEAT.",
-  "status": "pending",
+  "status": "completed",
   "steps": [
     "Add '@applens/react-native': 'file:../AppLens' to the 'dependencies' section of /Users/sunilkumar/Desktop/project/AppLens/triveni-point/package.json. No other changes to package.json.",
     "Update /Users/sunilkumar/Desktop/project/AppLens/triveni-point/tsconfig.json to add a path mapping for '@applens/react-native': ['../AppLens/src/index.ts'] under compilerOptions.paths, and add '../AppLens' under 'include' so TypeScript can resolve the library types.",
