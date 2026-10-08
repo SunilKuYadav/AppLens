@@ -5,10 +5,10 @@ import ReactAppDependencyProvider
 
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate {
-  var window: UIWindow?
 
   var reactNativeDelegate: ReactNativeDelegate?
   var reactNativeFactory: RCTReactNativeFactory?
+  var storedLaunchOptions: [UIApplication.LaunchOptionsKey: Any]?
 
   func application(
     _ application: UIApplication,
@@ -20,18 +20,44 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     reactNativeDelegate = delegate
     reactNativeFactory = factory
-
-    window = UIWindow(frame: UIScreen.main.bounds)
-
-    factory.startReactNative(
-      withModuleName: "Example",
-      in: window,
-      launchOptions: launchOptions
-    )
+    storedLaunchOptions = launchOptions
 
     return true
   }
 }
+
+// MARK: - SceneDelegate (same file, always compiled with AppDelegate)
+
+class SceneDelegate: UIResponder, UIWindowSceneDelegate {
+
+  var window: UIWindow?
+
+  func scene(
+    _ scene: UIScene,
+    willConnectTo session: UISceneSession,
+    options connectionOptions: UIScene.ConnectionOptions
+  ) {
+    guard let windowScene = scene as? UIWindowScene,
+          let appDelegate = UIApplication.shared.delegate as? AppDelegate,
+          let factory = appDelegate.reactNativeFactory else { return }
+
+    let rootView = factory.rootViewFactory.view(
+      withModuleName: "Example",
+      initialProperties: nil,
+      launchOptions: appDelegate.storedLaunchOptions
+    )
+
+    let rootViewController = UIViewController()
+    rootViewController.view = rootView
+
+    let win = UIWindow(windowScene: windowScene)
+    win.rootViewController = rootViewController
+    self.window = win
+    win.makeKeyAndVisible()
+  }
+}
+
+// MARK: - ReactNativeDelegate
 
 class ReactNativeDelegate: RCTDefaultReactNativeFactoryDelegate {
   override func sourceURL(for bridge: RCTBridge) -> URL? {
