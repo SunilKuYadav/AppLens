@@ -35,8 +35,15 @@ export function SettingsTab(): React.JSX.Element {
   function update(partial: Partial<AppLensConfig>): void {
     const updated = { ...config, ...partial };
     setConfig(updated);
-    // Propagate to singleton so future reads reflect the change
+    // Propagate config to the singleton
     AppLens.initialize(updated);
+    // Immediately attach or detach interceptors so toggling network/console
+    // takes effect without requiring an app restart.
+    if (!updated.enabled) {
+      AppLens.detachInterceptors();
+    } else {
+      AppLens.attachInterceptors();
+    }
   }
 
   return (

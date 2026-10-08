@@ -119,6 +119,56 @@ class AppLensClass {
     return this.initialized && this.config.enabled;
   }
 
+  /**
+   * Attach interceptors for the features that are currently enabled in config.
+   *
+   * Safe to call at any time after initialize(). Useful when settings are
+   * toggled at runtime from the UI — call this after updating the config so
+   * interceptors reflect the new state immediately.
+   *
+   * Already-attached interceptors are left untouched; newly-enabled ones
+   * are started; disabled ones are stopped.
+   */
+  attachInterceptors(): void {
+    if (!this.initialized || !this.config.enabled) {
+      return;
+    }
+
+    // Network
+    if (this.config.network) {
+      if (!this.networkInterceptor) {
+        this.networkInterceptor = new NetworkInterceptor(
+          this.storage,
+          this.config,
+        );
+      }
+      this.networkInterceptor.attach();
+    } else {
+      this.networkInterceptor?.detach();
+    }
+
+    // Console
+    if (this.config.console) {
+      if (!this.consoleInterceptor) {
+        this.consoleInterceptor = new ConsoleInterceptor(this.storage);
+      }
+      this.consoleInterceptor.attach();
+    } else {
+      this.consoleInterceptor?.detach();
+    }
+  }
+
+  /**
+   * Detach all active interceptors without changing config.
+   *
+   * Useful when a global "AppLens Enabled" master switch is turned off so
+   * all capturing stops immediately, rather than waiting for an app restart.
+   */
+  detachInterceptors(): void {
+    this.networkInterceptor?.detach();
+    this.consoleInterceptor?.detach();
+  }
+
   // ─── Internal helpers ─────────────────────────────────────────────────────
 
   private startInterceptors(): void {
