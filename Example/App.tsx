@@ -1,45 +1,38 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
+import React, { useEffect } from 'react';
+import { NavigationContainer } from '@react-navigation/native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { AppLens, AppLensUI } from '@applens/react-native';
+import { CartProvider } from './src/store/cartStore';
+import { AppNavigator } from './src/navigation/AppNavigator';
 
-import { NewAppScreen } from '@react-native/new-app-screen';
-import { StatusBar, StyleSheet, useColorScheme, View } from 'react-native';
-import {
-  SafeAreaProvider,
-  useSafeAreaInsets,
-} from 'react-native-safe-area-context';
+// Initialize AppLens at module load time so interceptors are active before
+// any network requests fire.
+AppLens.initialize({
+  enabled: true,
+  network: true,
+  console: true,
+  events: true,
+  ai: false,
+});
 
-function App() {
-  const isDarkMode = useColorScheme() === 'dark';
+console.log('ShopDemo: AppLens initialized');
+
+export default function App(): React.JSX.Element {
+  useEffect(() => {
+    if (AppLens.isEnabled()) {
+      console.log('ShopDemo: AppLens is active');
+    }
+  }, []);
 
   return (
     <SafeAreaProvider>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <AppContent />
+      <NavigationContainer>
+        <CartProvider>
+          <AppNavigator />
+        </CartProvider>
+      </NavigationContainer>
+      {/* AppLensUI renders the floating trigger and debug modal above everything */}
+      <AppLensUI />
     </SafeAreaProvider>
   );
 }
-
-function AppContent() {
-  const safeAreaInsets = useSafeAreaInsets();
-
-  return (
-    <View style={styles.container}>
-      <NewAppScreen
-        templateFileName="App.tsx"
-        safeAreaInsets={safeAreaInsets}
-      />
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-});
-
-export default App;

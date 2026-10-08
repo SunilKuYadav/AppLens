@@ -244,9 +244,21 @@ export class NetworkInterceptor {
           rawResponseHeaders,
           interceptor.config.redactHeaders,
         );
-        const responseBody = truncateBody(
-          typeof this.responseText === 'string' ? this.responseText : '',
-        );
+
+        // responseText is only accessible when responseType is '' or 'text'.
+        // Binary/blob responses (e.g. images) use a different responseType —
+        // accessing responseText on those throws in RN 0.87+.
+        let responseBody: string | undefined;
+        try {
+          const rt = (this as XMLHttpRequest & { responseType?: string }).responseType;
+          if (!rt || rt === 'text') {
+            responseBody = truncateBody(
+              typeof this.responseText === 'string' ? this.responseText : '',
+            );
+          }
+        } catch {
+          // swallow — binary/blob response, body not capturable as text
+        }
 
         interceptor.storage.updateNetworkRequest(id, {
           status: this.status,
