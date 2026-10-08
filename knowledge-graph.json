@@ -1,0 +1,378 @@
+[
+  {
+    "name": "AIProvider",
+    "type": "component",
+    "file": "ai/AIProvider.ts",
+    "dependencies": [
+      "AITypes",
+      "AppLensConfig",
+      "OpenAIProvider",
+      "LocalAIProvider"
+    ]
+  },
+  {
+    "name": "CodeIndexer",
+    "type": "component",
+    "file": "ai/CodeIndexer.ts",
+    "dependencies": [
+      "KnowledgeGraph"
+    ]
+  },
+  {
+    "name": "ContextEngine",
+    "type": "component",
+    "file": "ai/ContextEngine.ts",
+    "dependencies": [
+      "AITypes",
+      "AppLensStorage",
+      "KnowledgeGraph",
+      "ErrorTypes"
+    ]
+  },
+  {
+    "name": "KnowledgeGraph",
+    "type": "component",
+    "file": "ai/KnowledgeGraph.ts",
+    "dependencies": [
+      "applens-manifest.json"
+    ]
+  },
+  {
+    "name": "LocalAIProvider",
+    "type": "component",
+    "file": "ai/LocalAIProvider.ts",
+    "dependencies": [
+      "AIProvider",
+      "AITypes"
+    ]
+  },
+  {
+    "name": "OpenAIProvider",
+    "type": "component",
+    "file": "ai/OpenAIProvider.ts",
+    "dependencies": [
+      "AIProvider",
+      "AITypes"
+    ]
+  },
+  {
+    "name": "AppLensModal",
+    "type": "component",
+    "file": "components/AppLensModal.tsx",
+    "dependencies": [
+      "AppLensProvider",
+      "OverviewTab",
+      "NetworkTab",
+      "ConsoleTab",
+      "EventsTab",
+      "ErrorsTab",
+      "AITab",
+      "SettingsTab"
+    ]
+  },
+  {
+    "name": "AppLensTrigger",
+    "type": "component",
+    "file": "components/AppLensTrigger.tsx",
+    "dependencies": [
+      "AppLensProvider"
+    ]
+  },
+  {
+    "name": "Badge",
+    "type": "component",
+    "file": "components/Badge.tsx",
+    "dependencies": []
+  },
+  {
+    "name": "JSONViewer",
+    "type": "component",
+    "file": "components/JSONViewer.tsx",
+    "dependencies": []
+  },
+  {
+    "name": "LogEntryRow",
+    "type": "component",
+    "file": "components/LogEntryRow.tsx",
+    "dependencies": [
+      "LogTypes",
+      "Badge"
+    ]
+  },
+  {
+    "name": "NetworkEntry",
+    "type": "component",
+    "file": "components/NetworkEntry.tsx",
+    "dependencies": [
+      "NetworkTypes",
+      "Badge"
+    ]
+  },
+  {
+    "name": "SearchBar",
+    "type": "component",
+    "file": "components/SearchBar.tsx",
+    "dependencies": []
+  },
+  {
+    "name": "AppLens",
+    "type": "component",
+    "file": "core/AppLens.ts",
+    "dependencies": [
+      "AppLensConfig",
+      "AppLensStorage",
+      "MemoryStorage",
+      "NetworkInterceptor",
+      "ConsoleInterceptor",
+      "ErrorInterceptor",
+      "EventTypes",
+      "KnowledgeGraph",
+      "KnowledgeGraph"
+    ]
+  },
+  {
+    "name": "AppLensConfig",
+    "type": "component",
+    "file": "core/AppLensConfig.ts",
+    "dependencies": [
+      "AITypes",
+      "NetworkTypes"
+    ]
+  },
+  {
+    "name": "AppLensProvider",
+    "type": "component",
+    "file": "core/AppLensProvider.tsx",
+    "dependencies": [
+      "AppLens",
+      "NetworkTypes",
+      "LogTypes",
+      "EventTypes",
+      "ErrorTypes"
+    ]
+  },
+  {
+    "name": "useAppLens",
+    "type": "component",
+    "file": "core/AppLensProvider.tsx",
+    "dependencies": [
+      "AppLens",
+      "NetworkTypes",
+      "LogTypes",
+      "EventTypes",
+      "ErrorTypes"
+    ]
+  },
+  {
+    "name": "useSetModalVisible",
+    "type": "component",
+    "file": "core/AppLensProvider.tsx",
+    "dependencies": [
+      "AppLens",
+      "NetworkTypes",
+      "LogTypes",
+      "EventTypes",
+      "ErrorTypes"
+    ]
+  },
+  {
+    "name": "AppLensUI",
+    "type": "component",
+    "file": "core/AppLensUI.tsx",
+    "dependencies": [
+      "AppLensProvider",
+      "AppLensTrigger",
+      "AppLensModal"
+    ]
+  },
+  {
+    "name": "index",
+    "type": "component",
+    "file": "index.ts",
+    "dependencies": []
+  },
+  {
+    "name": "ConsoleInterceptor",
+    "type": "component",
+    "file": "interceptors/ConsoleInterceptor.ts",
+    "dependencies": [
+      "LogTypes",
+      "AppLensStorage"
+    ]
+  },
+  {
+    "name": "ErrorInterceptor",
+    "type": "component",
+    "file": "interceptors/ErrorInterceptor.ts",
+    "dependencies": [
+      "ErrorTypes",
+      "AppLensStorage"
+    ]
+  },
+  {
+    "name": "NetworkInterceptor",
+    "type": "component",
+    "file": "interceptors/NetworkInterceptor.ts",
+    "dependencies": [
+      "NetworkTypes",
+      "AppLensStorage",
+      "AppLensConfig",
+      "redact"
+    ]
+  },
+  {
+    "name": "AppLensStorage",
+    "type": "component",
+    "file": "storage/AppLensStorage.ts",
+    "dependencies": [
+      "NetworkTypes",
+      "LogTypes",
+      "EventTypes",
+      "ErrorTypes"
+    ]
+  },
+  {
+    "name": "MemoryStorage",
+    "type": "component",
+    "file": "storage/MemoryStorage.ts",
+    "dependencies": [
+      "NetworkTypes",
+      "LogTypes",
+      "EventTypes",
+      "ErrorTypes",
+      "AppLensStorage"
+    ]
+  },
+  {
+    "name": "AITab",
+    "type": "component",
+    "file": "tabs/AITab.tsx",
+    "dependencies": [
+      "AppLens",
+      "AITypes",
+      "AIProvider",
+      "ContextEngine",
+      "Badge"
+    ]
+  },
+  {
+    "name": "ConsoleTab",
+    "type": "component",
+    "file": "tabs/ConsoleTab.tsx",
+    "dependencies": [
+      "AppLensProvider",
+      "AppLens",
+      "LogTypes",
+      "LogEntryRow",
+      "JSONViewer",
+      "Badge",
+      "SearchBar"
+    ]
+  },
+  {
+    "name": "ErrorsTab",
+    "type": "component",
+    "file": "tabs/ErrorsTab.tsx",
+    "dependencies": [
+      "AppLensProvider",
+      "AppLens",
+      "ErrorTypes",
+      "Badge",
+      "SearchBar"
+    ]
+  },
+  {
+    "name": "EventsTab",
+    "type": "component",
+    "file": "tabs/EventsTab.tsx",
+    "dependencies": [
+      "AppLensProvider",
+      "AppLens",
+      "EventTypes",
+      "JSONViewer",
+      "Badge",
+      "SearchBar"
+    ]
+  },
+  {
+    "name": "NetworkDetailScreen",
+    "type": "screen",
+    "file": "tabs/NetworkDetailScreen.tsx",
+    "dependencies": [
+      "NetworkTypes",
+      "JSONViewer",
+      "Badge"
+    ]
+  },
+  {
+    "name": "NetworkTab",
+    "type": "component",
+    "file": "tabs/NetworkTab.tsx",
+    "dependencies": [
+      "AppLensProvider",
+      "AppLens",
+      "NetworkTypes",
+      "NetworkEntry",
+      "NetworkDetailScreen",
+      "SearchBar"
+    ]
+  },
+  {
+    "name": "OverviewTab",
+    "type": "component",
+    "file": "tabs/OverviewTab.tsx",
+    "dependencies": [
+      "AppLensProvider",
+      "AppLens",
+      "NetworkEntry",
+      "LogEntryRow",
+      "Badge",
+      "LogTypes"
+    ]
+  },
+  {
+    "name": "SettingsTab",
+    "type": "component",
+    "file": "tabs/SettingsTab.tsx",
+    "dependencies": [
+      "AppLens",
+      "AppLensConfig"
+    ]
+  },
+  {
+    "name": "AITypes",
+    "type": "component",
+    "file": "types/AITypes.ts",
+    "dependencies": []
+  },
+  {
+    "name": "ErrorTypes",
+    "type": "component",
+    "file": "types/ErrorTypes.ts",
+    "dependencies": []
+  },
+  {
+    "name": "EventTypes",
+    "type": "component",
+    "file": "types/EventTypes.ts",
+    "dependencies": []
+  },
+  {
+    "name": "LogTypes",
+    "type": "component",
+    "file": "types/LogTypes.ts",
+    "dependencies": []
+  },
+  {
+    "name": "NetworkTypes",
+    "type": "component",
+    "file": "types/NetworkTypes.ts",
+    "dependencies": []
+  },
+  {
+    "name": "redact",
+    "type": "component",
+    "file": "utils/redact.ts",
+    "dependencies": []
+  }
+]
