@@ -7,6 +7,7 @@ import ProductListScreen from '../screens/ProductListScreen';
 import ProductDetailScreen from '../screens/ProductDetailScreen';
 import CartScreen from '../screens/CartScreen';
 import OrdersScreen from '../screens/OrdersScreen';
+import AILabScreen from '../screens/AILabScreen';
 import { Product } from '../types/product';
 
 // ─── Param list types ─────────────────────────────────────────────────────────
@@ -20,6 +21,7 @@ export type RootTabParamList = {
   Products: undefined;
   Cart: undefined;
   Orders: undefined;
+  'AI Lab': undefined;
 };
 
 // ─── Navigators ───────────────────────────────────────────────────────────────
@@ -54,6 +56,8 @@ export function AppNavigator(): React.JSX.Element {
             icon = '🛒';
           } else if (route.name === 'Orders') {
             icon = '📦';
+          } else if (route.name === 'AI Lab') {
+            icon = '🧪';
           }
           return <Text style={{ fontSize: size, color }}>{icon}</Text>;
         },
@@ -62,6 +66,7 @@ export function AppNavigator(): React.JSX.Element {
       <Tab.Screen name="Products" component={ProductStackNavigator} />
       <Tab.Screen name="Cart" component={CartScreen} />
       <Tab.Screen name="Orders" component={OrdersScreen} />
+      <Tab.Screen name="AI Lab" component={AILabScreen} />
     </Tab.Navigator>
   );
 }

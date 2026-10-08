@@ -1,10 +1,22 @@
 import { NetworkRequest } from '../types/NetworkTypes';
 import { AppLensStorage } from '../storage/AppLensStorage';
 import { AppLensConfig } from '../core/AppLensConfig';
-import { redactHeaders } from '../utils/redact';
+import { redactFields, redactHeaders } from '../utils/redact';
 
 /** Maximum body size captured per request/response (50 KB). */
 const MAX_BODY_BYTES = 50 * 1024;
+
+/**
+ * Default field names redacted from request/response BODIES when
+ * `config.redaction` is set but `config.redaction.fields` is omitted.
+ */
+const DEFAULT_REDACTED_FIELDS = [
+  'password',
+  'token',
+  'secret',
+  'accessToken',
+  'refreshToken',
+];
 
 /** Generate a simple unique ID without external deps. */
 function generateId(): string {
@@ -17,6 +29,34 @@ function truncateBody(body: string): string {
     return body.slice(0, MAX_BODY_BYTES) + '…[truncated]';
   }
   return body;
+}
+
+/**
+ * Best-effort field redaction for a captured JSON body string.
+ *
+ * When `config.redaction` is set, JSON bodies are parsed and any field whose
+ * name matches `config.redaction.fields` (or the default field list) is
+ * replaced with '[REDACTED]'. Non-JSON bodies (or bodies that fail to parse)
+ * are returned unchanged. This never throws.
+ */
+function redactBody(
+  body: string | undefined,
+  config: AppLensConfig,
+): string | undefined {
+  if (body == null || !config.redaction) {
+    return body;
+  }
+  const fields =
+    config.redaction.fields && config.redaction.fields.length > 0
+      ? config.redaction.fields
+      : DEFAULT_REDACTED_FIELDS;
+  try {
+    const parsed = JSON.parse(body);
+    return JSON.stringify(redactFields(parsed, fields));
+  } catch {
+    // Not JSON (or already truncated) — leave the raw string untouched.
+    return body;
+  }
 }
 
 /** Parse a raw header string (from XHR.getAllResponseHeaders) into a map. */
@@ -202,7 +242,9 @@ export class NetworkInterceptor {
       ) as Record<string, string>;
 
       const requestBody =
-        body != null ? truncateBody(String(body)) : undefined;
+        body != null
+          ? redactBody(truncateBody(String(body)), interceptor.config)
+          : undefined;
 
       const request: NetworkRequest = {
         id,
@@ -236,8 +278,11 @@ export class NetworkInterceptor {
         try {
           const rt = (this as XMLHttpRequest & { responseType?: string }).responseType;
           if (!rt || rt === 'text') {
-            responseBody = truncateBody(
-              typeof this.responseText === 'string' ? this.responseText : '',
+            responseBody = redactBody(
+              truncateBody(
+                typeof this.responseText === 'string' ? this.responseText : '',
+              ),
+              interceptor.config,
             );
           }
         } catch {
@@ -352,7 +397,7 @@ export class NetworkInterceptor {
       let requestBody: string | undefined;
       if (init?.body != null) {
         if (typeof init.body === 'string') {
-          requestBody = truncateBody(init.body);
+          requestBody = redactBody(truncateBody(init.body), interceptor.config);
         } else {
           requestBody = '[non-string body]';
         }
@@ -387,7 +432,7 @@ export class NetworkInterceptor {
         let responseBody: string | undefined;
         try {
           const text = await cloned.text();
-          responseBody = truncateBody(text);
+          responseBody = redactBody(truncateBody(text), interceptor.config);
         } catch {
           responseBody = '[unreadable body]';
         }

@@ -1,97 +1,145 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# ShopDemo — AppLens Example App
 
-# Getting Started
+ShopDemo is a small React Native shopping demo (product list, product detail, cart, orders) used to exercise the [`@applens/react-native`](../README.md) library. It consumes AppLens via a `file:../` dependency and includes an **AI Test Lab** tab that generates realistic runtime evidence so you can try the AppLens AI assistant against grounded data.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+The demo is deliberately generic. It calls a public demo API (`https://fakestoreapi.com`) and tracks a couple of events (`add_to_cart`, `order_placed`); there is no proprietary logic.
 
-## Step 1: Start Metro
+---
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+## Prerequisites
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+- A working React Native 0.87 environment — follow the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide for your OS.
+- Node.js and npm.
+- iOS: Xcode + CocoaPods. Android: Android Studio + an emulator.
+- Install dependencies from this `Example/` folder:
 
 ```sh
-# Using npm
-npm start
-
-# OR using Yarn
-yarn start
+npm install
 ```
 
-## Step 2: Build and run your app
+AppLens itself needs no build step — it ships raw TypeScript and is resolved from `../` via Metro and the tsconfig path mapping.
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
+---
 
-### Android
+## Running the app
+
+Start Metro from this folder:
 
 ```sh
-# Using npm
-npm run android
-
-# OR using Yarn
-yarn android
+npm start
 ```
 
 ### iOS
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
-
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
+Install pods on first run (and after native dep changes), then launch:
 
 ```sh
-bundle install
-```
-
-Then, and every time you update your native dependencies, run:
-
-```sh
+bundle install          # first time only, installs CocoaPods
 bundle exec pod install
+npm run ios
 ```
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+### Android
 
 ```sh
-# Using npm
-npm run ios
-
-# OR using Yarn
-yarn ios
+npm run android
 ```
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+> On the Android emulator, `127.0.0.1` points at the emulator, not your Mac. Any local server (like LM Studio) must be reached via `10.0.2.2`. The Example already picks the right base URL per platform in `App.tsx`.
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+Open the AppLens console at any time by tapping the floating trigger button; it opens the full-screen modal with the Overview, Network, Console, Events, Errors, AI, and Settings tabs.
 
-## Step 3: Modify your app
+---
 
-Now that you have successfully run the app, let's make changes!
+## Configuring the AI (LM Studio)
 
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
+The Example is wired for a local [LM Studio](https://lmstudio.ai) server (OpenAI-compatible). To get grounded AI answers:
 
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
+1. In LM Studio, **load a model** (the Example expects `qwen2.5-coder-14b-instruct`).
+2. Enable **"Serve on Local Network"** so the server binds `0.0.0.0`, not just localhost.
+3. Confirm the base URL matches your platform:
 
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
+   | Platform | Base URL |
+   | --- | --- |
+   | iOS simulator | `http://127.0.0.1:1234/v1` |
+   | Android emulator | `http://10.0.2.2:1234/v1` |
+   | Physical device | `http://<your-computer-LAN-IP>:1234/v1` |
 
-## Congratulations! :tada:
+4. Make sure `aiModel` in `App.tsx` matches the model name loaded in LM Studio.
 
-You've successfully run and modified your React Native App. :partying_face:
+`App.tsx` already selects `10.0.2.2` on Android and `127.0.0.1` elsewhere. Android debug builds may need cleartext `http` traffic allowed.
 
-### Now what?
+> The real `openai` SDK is replaced in this Example by a small fetch-based shim (`shims/openai.js`) so it works in the RN runtime.
 
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
+---
 
-# Troubleshooting
+## Testing AI capabilities
 
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
+The **AI Lab** tab (🧪) lists runnable scenarios. Each card has a **Run scenario** button that produces deterministic runtime evidence (network requests, console output, tracked events, and — where relevant — a captured error), and a suggested question with a **Copy question** button.
 
-# Learn More
+How to use the lab:
 
-To learn more about React Native, take a look at the following resources:
+1. Open the **AI Lab** tab and tap **Run scenario** on a card. Wait for it to show *done*.
+2. Tap **Copy question** to copy that scenario's suggested question.
+3. Open the AppLens console → **AI** tab, paste the question, and send it.
+4. The AI reads the runtime evidence via the Context Engine and answers. Every reply ends with a `Confidence: High | Medium | Low` line, shown as a badge, and a collapsible "Context used" section lists which chunks were included.
 
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+There is no prefilled-prompt API in AppLens, so the lab uses tap-to-copy rather than injecting the prompt for you.
+
+### Scenarios
+
+| # | Scenario | Suggested question (tap to copy) | Expected grounded answer |
+|---|---|---|---|
+| 1 | **Failed checkout request** | `Why did checkout fail?` | AI cites the failed request (HTTP 500, or the 404 fallback) and the `checkout_failed` event it logged. |
+| 2 | **Response shape mismatch** | `The checkout API succeeds but the confirmation is empty. Why?` | AI notes the request returned 200 but the expected nested field was missing, so the confirmation id is `undefined`. |
+| 3 | **Runtime error** | `What caused the latest error and where in the code?` | AI reports the captured error (`Cannot read property "total" of undefined`) and its stack. |
+| 4 | **Slow request + warnings** | `Which requests are slow and what was logged around them?` | AI identifies the ~3s request (`httpbin.org/delay/3`) by duration and relates it to the surrounding warnings. |
+| 5 | **Session event funnel** | `Summarize the user's last session flow.` | AI summarizes the event sequence `cart_viewed → checkout_started → payment_failed`. |
+| 6 | **Secret redaction** | `What auth token was sent?` | AI reports the `Authorization` header is `[REDACTED]` and cannot disclose it. The body `password`/`token` are `[REDACTED]` too, because the Example enables `redaction.fields`. |
+| 7 | **Code correlation** | `Which file makes the /carts request?` | With the knowledge graph loaded, AI relates the runtime `/carts` POST to `CartScreen` (the Example screen that issues it). |
+
+### Scenario #7 and the knowledge graph
+
+Scenario 7 relies on a pre-built source manifest. The Example already ships one at `src/aiLab/knowledge-graph.json` and loads it in `App.tsx` via `AppLens.loadKnowledgeGraph(...)`. To regenerate it yourself, run the Code Indexer from the AppLens package root:
+
+```sh
+cd ..
+node src/ai/index-project.js Example/src > Example/src/aiLab/knowledge-graph.json
+```
+
+The indexer is a Node-only regex/heuristic scanner, so treat the graph as a best-effort map of screens/components/hooks/services.
+
+### Offline note
+
+Every scenario is wrapped so it still leaves evidence when the device is offline — the network calls fall back or fail gracefully, but the console logs and tracked events are still recorded. Only the AI answer itself degrades without a reachable model (or if LM Studio isn't serving). The redaction, funnel, and error scenarios remain fully demonstrable offline because their evidence is local.
+
+---
+
+## Project layout
+
+```
+Example/
+├── App.tsx                      # AppLens.initialize + loadKnowledgeGraph + <AppLensUI />
+├── src/
+│   ├── navigation/              # bottom tabs (Products, Cart, Orders, AI Lab)
+│   ├── screens/                 # ProductList, ProductDetail, Cart, Orders, AILab
+│   ├── store/                   # cart state (reducer + context)
+│   ├── types/
+│   └── aiLab/
+│       ├── scenarios.ts         # the AI Test Lab scenario definitions
+│       └── knowledge-graph.json # pre-built manifest for scenario 7
+├── shims/openai.js              # fetch-based OpenAI shim for the RN runtime
+└── __tests__/                   # Jest smoke tests
+```
+
+---
+
+## Testing & verification
+
+```sh
+npx tsc --noEmit     # type-check
+npx jest             # unit/smoke tests
+npx eslint src       # lint
+```
+
+No native simulator build is required for these checks.

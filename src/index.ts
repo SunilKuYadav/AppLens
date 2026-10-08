@@ -16,6 +16,9 @@ export type { AIMessage, AIConversation, ContextChunk } from './types/AITypes';
 // ─── Storage ──────────────────────────────────────────────────────────────
 export type { AppLensStorage } from './storage/AppLensStorage';
 
+// ─── Utils ────────────────────────────────────────────────────────────────
+export { redactHeaders, redactFields } from './utils/redact';
+
 // ─── Components ───────────────────────────────────────────────────────────
 export { AppLensModal } from './components/AppLensModal';
 export { AppLensTrigger } from './components/AppLensTrigger';

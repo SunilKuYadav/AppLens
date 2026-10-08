@@ -1,10 +1,12 @@
 # AppLens
 
-> `@applens/react-native` — v0.2.0
+> `@applens/react-native` — v0.2.1
 
-A developer-focused debugging and observability library for React Native applications. AppLens provides an in-app developer console where you can inspect network requests, console logs, application events, runtime errors, and get AI-powered analysis of your application's runtime behaviour and source code.
+A developer-focused debugging, observability, and AI-analysis library for React Native applications. AppLens runs an in-app developer console where you inspect network requests, console logs, application events, and runtime errors, and where you can ask an AI assistant grounded questions about what your app actually did at runtime.
 
 The console is a floating trigger button that opens a full-screen modal with seven tabs: **Overview, Network, Console, Events, Errors, AI, and Settings**.
+
+AppLens is intentionally generic — it carries no assumptions about any particular host app. For the broader product vision, roadmap, and engineering spec, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ---
 
@@ -12,7 +14,7 @@ The console is a floating trigger button that opens a full-screen modal with sev
 
 ### 1. Add the dependency
 
-For local development (file path):
+For local development, point your app's `package.json` at the AppLens source folder:
 
 ```json
 // package.json
@@ -31,7 +33,7 @@ npm install
 yarn install
 ```
 
-AppLens ships raw TypeScript (no build step). Its only runtime dependencies are `openai` and `react-native-markdown-display`. `react` (>=18) and `react-native` (>=0.71) are peer dependencies.
+AppLens ships raw TypeScript (no build step — `main` and `types` both point at `src/index.ts`). Its only runtime dependencies are `openai` and `react-native-markdown-display`. `react` (>=18) and `react-native` (>=0.71) are peer dependencies.
 
 ### 2. Add path mapping in tsconfig.json
 
@@ -71,7 +73,6 @@ const App = () => {
       events: true,
       errors: true,
       ai: true,
-      projectRoot: '/path/to/your/project',
     });
   }, []);
 
@@ -84,34 +85,41 @@ const App = () => {
 };
 ```
 
-`<AppLensUI />` renders both the floating trigger and the modal, and wires up the React context internally. Place it as the last child inside your root provider so it renders on top of all other UI.
+Two pieces wire AppLens into your app:
+
+- `AppLens.initialize(config)` — the singleton that attaches the interceptors and holds captured data. Call it once at startup. You can also call it at module load (before `useEffect`) if you want interceptors active before the first render.
+- `<AppLensUI />` — the root UI component. It renders the floating trigger button, the full-screen modal, and the React context the tabs read from. Place it as the last child inside your root provider so it renders on top of all other UI.
+
+> The product spec sketches a single `<AppLens />` component. The real API separates the data singleton (`AppLens`) from the UI component (`AppLensUI`). Use `AppLensUI` — see the divergence note in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ---
 
 ## `AppLens.initialize(config)`
 
-Call `AppLens.initialize(config)` once at app startup. It merges your partial config with the defaults. Calling it again updates the config but does not re-attach interceptors that are already running.
+Call `AppLens.initialize(config)` once at app startup. It merges your partial config with the defaults. Calling it again updates the stored config (the Settings tab uses this at runtime) but does not recreate storage or re-attach interceptors that are already running.
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `enabled` | `boolean` | `true` | Master switch. When `false`, no interception or UI occurs. |
+| `enabled` | `boolean` | `true` | Master switch. When `false`, no interception or UI capture occurs. |
 | `network` | `boolean` | `true` | Capture network requests (XHR / fetch). |
 | `console` | `boolean` | `true` | Capture `console.log/info/warn/error/debug` output. |
 | `events` | `boolean` | `true` | Enable the `AppLens.trackEvent()` API. |
-| `errors` | `boolean` | `true` | Capture uncaught errors and unhandled promise rejections. |
+| `errors` | `boolean` | `true` | Capture uncaught errors and (on Hermes) unhandled promise rejections. |
 | `ai` | `boolean` | `true` | Enable the AI tab and AI analysis features. |
 | `aiProvider` | `'openai' \| 'lmstudio' \| 'local'` | `'openai'` | Which AI backend to use. |
 | `aiApiKey` | `string` | `undefined` | API key for the AI provider (never logged). Not required for `lmstudio`/`local`. |
 | `aiModel` | `string` | `undefined` | Model identifier, e.g. `'gpt-4o'` for OpenAI or the model name shown in LM Studio. |
 | `aiBaseURL` | `string` | `undefined` | Override the AI provider base URL (e.g. `http://127.0.0.1:1234/v1` for LM Studio). |
-| `redactHeaders` | `string[]` | built-in list | Header names whose values are replaced with `[REDACTED]` in network logs. |
-| `redaction` | `{ headers?: string[]; fields?: string[] }` | `undefined` | Structured redaction option: additional header names and object field names to redact (case-insensitive). |
-| `projectRoot` | `string` | `undefined` | Absolute path to the host project root, used by the Code Indexer for AI context. |
-| `maxNetworkEntries` | `number` | `500` | Maximum number of network requests kept in memory. |
-| `maxLogEntries` | `number` | `1000` | Maximum number of console log entries kept in memory. |
-| `maxEventEntries` | `number` | `500` | Maximum number of tracked events kept in memory. |
-| `persistLogs` | `boolean` | `false` | Reserved flag for persisting logs across reloads. Not yet implemented. |
-| `verboseLogging` | `boolean` | `false` | Enable AppLens's own verbose diagnostic logging. |
+| `redactHeaders` | `string[]` | built-in list | Header names whose **values** are replaced with `[REDACTED]` in network logs. Default list below. |
+| `redaction` | `{ headers?: string[]; fields?: string[] }` | `undefined` | Structured redaction. When set, request/response JSON **body** fields named in `fields` are redacted (case-insensitive). See [Redaction](#redaction). |
+| `projectRoot` | `string` | `undefined` | Absolute path to the host project root. Reserved for future in-app indexing; not read at runtime today. |
+| `maxNetworkEntries` | `number` | `500` | Maximum number of network requests kept in memory (ring buffer). |
+| `maxLogEntries` | `number` | `1000` | Maximum number of console log entries kept in memory (ring buffer). |
+| `maxEventEntries` | `number` | `500` | Maximum number of tracked events kept in memory (ring buffer). |
+| `persistLogs` | `boolean` | `false` | **Reserved / not yet implemented.** The flag exists but no persistence happens — all data is in-memory. |
+| `verboseLogging` | `boolean` | `false` | **Reserved / unused today.** Declared in config but not currently consumed. |
+
+The default `redactHeaders` list is: `authorization`, `cookie`, `x-api-key`, `x-auth-token`, `x-access-token`, `x-secret`.
 
 ### Example
 
@@ -126,10 +134,8 @@ AppLens.initialize({
   aiProvider: 'openai',
   aiApiKey: process.env.OPENAI_API_KEY,
   aiModel: 'gpt-4o',
-  projectRoot: '/Users/you/projects/MyApp',
   redactHeaders: ['Authorization', 'x-api-key'],
   redaction: {
-    headers: ['x-session-id'],
     fields: ['password', 'token'],
   },
   maxNetworkEntries: 300,
@@ -140,15 +146,22 @@ AppLens.initialize({
 
 ## Public API
 
+`AppLens` is a singleton object (not a component). Its methods:
+
 ```ts
 import { AppLens } from '@applens/react-native';
 
-AppLens.initialize(config);          // configure and start AppLens
-AppLens.trackEvent(name, props?);    // record a custom event
-AppLens.reset();                     // detach interceptors, clear all data, mark uninitialized
-AppLens.getVersion();                // '0.2.0'
-AppLens.getConfig();                 // read-only copy of the active config
-AppLens.getStorage();                // the shared AppLensStorage instance
+AppLens.initialize(config);              // configure and start AppLens
+AppLens.trackEvent(name, props?);        // record a custom event
+AppLens.isEnabled();                     // true when initialized and enabled
+AppLens.getVersion();                    // '0.2.1'
+AppLens.getConfig();                     // read-only copy of the active config
+AppLens.getStorage();                    // the shared AppLensStorage instance
+AppLens.loadKnowledgeGraph(manifest);    // load a GraphNode[] source manifest
+AppLens.getKnowledgeGraph();             // the current KnowledgeGraph instance
+AppLens.attachInterceptors();            // (re)attach interceptors per current config
+AppLens.detachInterceptors();            // detach all interceptors (keep config)
+AppLens.reset();                         // detach, clear all data, mark uninitialized
 ```
 
 ### `AppLens.trackEvent(name, properties?)`
@@ -161,15 +174,24 @@ AppLens.trackEvent('checkout_started', {
 });
 ```
 
-No-op when AppLens is disabled or events are turned off. Each event is stored as:
+No-op when AppLens is disabled or events are turned off. Each event is stored as an `AppEvent`:
 
 ```ts
-{
+interface AppEvent {
+  id: string;
   name: string;
   timestamp: number;              // Unix ms
   properties?: Record<string, unknown>;
 }
 ```
+
+### `AppLens.attachInterceptors()` / `AppLens.detachInterceptors()`
+
+`attachInterceptors()` starts the interceptors enabled in the current config and stops the ones that are disabled; `detachInterceptors()` stops all of them without touching config. The Settings tab calls these so runtime toggles take effect without an app restart.
+
+### `AppLens.loadKnowledgeGraph(manifest)` / `AppLens.getKnowledgeGraph()`
+
+`loadKnowledgeGraph()` replaces the in-memory knowledge graph with one built from a `GraphNode[]` manifest produced by the Code Indexer (see [Code intelligence](#code-intelligence-knowledge-graph)). `getKnowledgeGraph()` returns the current `KnowledgeGraph`. The graph is empty until a manifest is loaded.
 
 ### `AppLens.reset()`
 
@@ -177,7 +199,7 @@ Detaches all interceptors (network, console, errors), clears every data store (n
 
 ### `AppLens.getVersion()`
 
-Returns the library version string (`'0.2.0'`).
+Returns the library version string (`'0.2.1'`).
 
 ---
 
@@ -197,11 +219,67 @@ No props required — all configuration is handled via `AppLens.initialize()`. T
 | **Network** | List of captured HTTP requests with method, URL, status, and duration. Tap a request for full detail: URL, method, headers, query params, request body, response headers, response body, and error info. Searchable, filterable, clearable. |
 | **Console** | Captured console output (`log`, `info`, `warn`, `error`, `debug`). Searchable and level-filterable. Tap a log for full detail including stack trace. |
 | **Events** | Custom events sent via `AppLens.trackEvent()`. Searchable, filterable, and clearable. |
-| **Errors** | Uncaught errors and unhandled promise rejections. Each row shows the timestamp, message, and a fatal/non-fatal badge; tap to expand the full stack trace. Searchable and clearable. |
-| **AI** | Conversational AI assistant with full context of the application's runtime state and (optionally) source code. Each reply shows a collapsible "Context used" section, a Confidence badge, and a Copy button. |
-| **Settings** | Toggle individual AppLens features on/off at runtime without restarting the app. |
+| **Errors** | Uncaught errors and (on Hermes) unhandled promise rejections. Each row shows the timestamp, message, and a fatal/non-fatal badge; tap to expand the full stack trace. Searchable and clearable. |
+| **AI** | Conversational AI assistant with context of the application's runtime state and (when a manifest is loaded) its source structure. Each reply shows a collapsible "Context used" section, a Confidence badge, and a Copy button. |
+| **Settings** | Toggle AppLens features on/off at runtime without restarting the app. |
 
-If you need finer placement control, `AppLensProvider`, `AppLensTrigger`, and `AppLensModal` are exported separately.
+If you need finer placement control, `AppLensProvider` (with the `useAppLens()` hook), `AppLensTrigger`, and `AppLensModal` are exported separately.
+
+---
+
+## Network Inspection
+
+When `network: true` (the default), AppLens installs a `NetworkInterceptor` that monkey-patches the global `XMLHttpRequest` and `fetch`. Each captured request is stored as a `NetworkRequest`:
+
+```ts
+interface NetworkRequest {
+  id: string;
+  method: string;
+  url: string;
+  status?: number;
+  statusText?: string;
+  requestHeaders: Record<string, string>;
+  responseHeaders: Record<string, string>;
+  requestBody?: string;    // truncated to 50 KB
+  responseBody?: string;   // truncated to 50 KB
+  duration?: number;       // ms
+  timestamp: number;       // Unix ms
+  error?: { message: string; code?: string; stack?: string };
+  state: 'pending' | 'complete' | 'error';
+  context?: NetworkRequestContext;  // see note below
+}
+```
+
+- Request and response bodies are truncated to **50 KB** before storage.
+- Sensitive header values are redacted — see [Redaction](#redaction).
+- `NetworkRequest.context` (screen / hook / service / event that triggered the request) is **declared but not populated today.** Runtime→source correlation is on the roadmap; see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+---
+
+## Console Inspection
+
+When `console: true`, a `ConsoleInterceptor` overrides `console.log/info/warn/error/debug` and stores each call as a `LogEntry`:
+
+```ts
+type LogLevel = 'log' | 'info' | 'warn' | 'error' | 'debug';
+
+interface LogEntry {
+  id: string;
+  level: LogLevel;
+  message: string;
+  args: unknown[];
+  timestamp: number;   // Unix ms
+  stack?: string;
+}
+```
+
+The Console tab is searchable and level-filterable, with per-entry detail (including the captured stack) and copy.
+
+---
+
+## Event Tracking
+
+When `events: true`, `AppLens.trackEvent(name, properties?)` records a structured `AppEvent` (shown above). Events appear in the Events tab and are available to the AI assistant as context.
 
 ---
 
@@ -210,7 +288,7 @@ If you need finer placement control, `AppLensProvider`, `AppLensTrigger`, and `A
 When `errors: true` (the default), AppLens installs an `ErrorInterceptor` that:
 
 - Captures uncaught JavaScript errors via React Native's `ErrorUtils` global handler, then calls the original handler so your app's normal error flow is preserved.
-- Captures unhandled promise rejections as non-fatal errors when the Hermes rejection tracker is available. On runtimes without it, rejection capture is a no-op.
+- Captures unhandled promise rejections as non-fatal errors **when the Hermes rejection tracker is available.** On runtimes without it, rejection capture is a no-op (uncaught errors are still captured).
 
 Captured errors use the `AppError` type:
 
@@ -224,13 +302,15 @@ interface AppError {
 }
 ```
 
-They appear in the **Errors** tab, feed the Overview error counts, and are available to the AI assistant as context.
+They appear in the Errors tab, feed the Overview error counts, and are available to the AI assistant as context.
 
 ---
 
 ## Redaction
 
-AppLens never logs secret header values by default. The `redactHeaders` list controls which header values are replaced with `[REDACTED]` in network logs:
+AppLens redacts secrets before captured data is stored or shown. Redaction runs in two layers:
+
+**1. Header values (always on by default).** The `redactHeaders` list controls which request/response header values are replaced with `[REDACTED]`. The default list covers common auth headers (`authorization`, `cookie`, `x-api-key`, `x-auth-token`, `x-access-token`, `x-secret`). Override it to add your own:
 
 ```ts
 AppLens.initialize({
@@ -238,18 +318,19 @@ AppLens.initialize({
 });
 ```
 
-For additional control, the structured `redaction` option lets you add header names and object field names (both matched case-insensitively):
+**2. Body fields (opt-in via `redaction`).** When you set the `redaction` option, JSON request and response **bodies** are best-effort parsed and any field named in `redaction.fields` (case-insensitive, at any depth) is replaced with `[REDACTED]` before storage. If `redaction` is set but `fields` is omitted, AppLens defaults to `['password', 'token', 'secret', 'accessToken', 'refreshToken']`. Non-JSON bodies and parse failures are left as the (already 50 KB-truncated) raw string — redaction never throws.
 
 ```ts
 AppLens.initialize({
   redaction: {
-    headers: ['x-internal-token'],
     fields: ['password', 'secret', 'accessToken'],
   },
 });
 ```
 
-Redaction is implemented by the shared `redactHeaders` / `redactFields` utilities and always replaces the matched value with `[REDACTED]` without mutating the original data.
+Body-field redaction was wired in **v0.2.1**. Redaction is implemented by the exported `redactHeaders` / `redactFields` utilities; both return a fresh value and never mutate their input.
+
+> Note: `redaction.headers` is accepted by the type, but header redaction is driven by the top-level `redactHeaders` option today. Use `redactHeaders` to add header names.
 
 ---
 
@@ -267,9 +348,11 @@ AppLens.initialize({
 });
 ```
 
-- **openai** — uses the OpenAI API; requires `aiApiKey`.
-- **lmstudio** — points at a local LM Studio server via `aiBaseURL`; no API key required.
-- **local** — a stub provider that works without any backend and returns canned guidance.
+- **openai** — uses the OpenAI API via `OpenAIProvider`; requires a non-empty `aiApiKey`.
+- **lmstudio** — points `OpenAIProvider` at a local LM Studio server via `aiBaseURL` (default `http://127.0.0.1:1234/v1`); no API key required.
+- **local** — `LocalAIProvider`, an **unconfigured stub**. Its `isConfigured()` returns `false` and `chat()` throws, so the AI tab shows a setup prompt directing you to configure a provider. It does **not** return canned answers.
+
+If `aiProvider` is `'openai'` but no API key is set, the factory falls back to the `local` stub — so the tab prompts you to finish AI setup rather than silently doing nothing.
 
 ### Connecting to a local LLM (LM Studio)
 
@@ -281,7 +364,8 @@ When running against a local LM Studio server, the correct base URL depends on w
 | Android emulator | `http://10.0.2.2:1234/v1` |
 | Physical device | `http://<your-computer-LAN-IP>:1234/v1` |
 
-- Enable **'Serve on Local Network'** in LM Studio so it binds `0.0.0.0` rather than only localhost. Without this, emulator and device connections fail even with the right base URL.
+- In LM Studio, load a model and enable **"Serve on Local Network"** so the server binds `0.0.0.0` rather than only localhost. Without this, emulator and device connections fail even with the right base URL.
+- `aiModel` must match the model loaded in LM Studio.
 - Android debug builds may need cleartext `http` traffic allowed (ensure `usesCleartextTraffic` is enabled in the debug manifest).
 
 Android emulator example:
@@ -295,20 +379,39 @@ AppLens.initialize({
 });
 ```
 
-> **Security note:** Never hard-code your API key in source control. Use environment variables or a secrets manager and inject the key at build time. API keys are never written to logs.
+> **Security note:** Never hard-code your API key in source control. Use environment variables or a secrets manager and inject the key at build time. API keys are never written to logs. By default AppLens keeps everything local — data is only sent to a remote endpoint when you explicitly configure the `openai` provider.
 
 ### AI context and code awareness
 
-AppLens AI is not a generic chatbot. The Context Engine assembles structured context from:
+AppLens AI is not a generic chatbot. A `ContextEngine` assembles structured context for each question from:
 
 - Captured network requests and responses
 - Console log history
 - Tracked events
 - Captured runtime errors
-- The Application Knowledge Graph (component → hook → service → API → state relationships)
-- Indexed source code (when `projectRoot` is configured)
+- The Application Knowledge Graph summary (when a manifest is loaded)
 
-Each AI reply includes a line in the form `Confidence: High | Medium | Low`, which the UI parses into a colored badge.
+Chunks are selected by keyword + recency ranking and kept under an ~8000-token budget. The engine does **not** read source files at runtime. Each AI reply ends with a line formatted as `Confidence: High | Medium | Low`, which the UI parses into a colored badge.
+
+### Code intelligence (knowledge graph)
+
+AppLens can correlate runtime activity with your source structure using a pre-built knowledge graph. The Code Indexer is a Node-only script that scans your `.ts`/`.tsx` files and emits a `GraphNode[]` manifest:
+
+```sh
+# from the AppLens package root
+node src/ai/index-project.js path/to/your/src > graph.json
+```
+
+Load the manifest at startup:
+
+```ts
+import graph from './graph.json';
+import { AppLens, GraphNode } from '@applens/react-native';
+
+AppLens.loadKnowledgeGraph(graph as GraphNode[]);
+```
+
+The indexer is a **regex/heuristic** scanner (not an AST parser): it classifies files as screen/component/hook/service/store/api, extracts top-level entity names, and derives dependencies from relative imports. Treat its output as a best-effort map, not a precise call graph.
 
 ---
 
@@ -329,62 +432,50 @@ Each AI reply includes a line in the form `Confidence: High | Medium | Low`, whi
                       ring buffer)
 ```
 
+Source layout:
+
 ```
 @applens/react-native
 └── src/
     ├── core/
-    │   ├── AppLens.ts          # Singleton — initialize(), trackEvent(), reset(), getVersion(), getters
+    │   ├── AppLens.ts          # Singleton — initialize/trackEvent/reset/getVersion/getters,
+    │   │                       #   loadKnowledgeGraph, attach/detachInterceptors
     │   ├── AppLensConfig.ts    # AppLensConfig type and DEFAULT_CONFIG
     │   ├── AppLensProvider.tsx # React context provider + useAppLens() hook
-    │   └── AppLensUI.tsx       # Root component (trigger + modal + provider)
+    │   └── AppLensUI.tsx       # Root component (provider + trigger + modal)
     ├── interceptors/
-    │   ├── NetworkInterceptor.ts  # Patches global XHR and fetch
+    │   ├── NetworkInterceptor.ts  # Patches global XHR and fetch; redacts headers + body fields
     │   ├── ConsoleInterceptor.ts  # Overrides global console methods
-    │   └── ErrorInterceptor.ts    # ErrorUtils global handler + Hermes rejection tracker
+    │   └── ErrorInterceptor.ts    # ErrorUtils handler + Hermes rejection tracker
     ├── storage/
     │   ├── AppLensStorage.ts   # Synchronous storage interface
     │   └── MemoryStorage.ts    # In-memory ring-buffer implementation
-    ├── components/
-    │   ├── AppLensModal.tsx    # Full-screen modal with the 7-tab bar
-    │   ├── AppLensTrigger.tsx  # Floating trigger button
-    │   ├── Badge.tsx
-    │   ├── JSONViewer.tsx      # Syntax-highlighted, horizontally scrollable JSON
-    │   ├── LogEntryRow.tsx
-    │   ├── NetworkEntry.tsx
-    │   └── SearchBar.tsx
-    ├── tabs/
-    │   ├── OverviewTab.tsx
-    │   ├── NetworkTab.tsx
-    │   ├── NetworkDetailScreen.tsx
-    │   ├── ConsoleTab.tsx
-    │   ├── EventsTab.tsx
-    │   ├── ErrorsTab.tsx
-    │   ├── AITab.tsx
-    │   └── SettingsTab.tsx
+    ├── components/             # AppLensModal, AppLensTrigger, Badge, JSONViewer, …
+    ├── tabs/                   # OverviewTab, NetworkTab, ConsoleTab, EventsTab,
+    │                           #   ErrorsTab, AITab, SettingsTab, NetworkDetailScreen
     ├── ai/
-    │   ├── AIProvider.ts       # Provider interface + createAIProvider() factory
+    │   ├── AIProvider.ts       # AIProvider interface + createAIProvider() factory
     │   ├── OpenAIProvider.ts
-    │   ├── LocalAIProvider.ts
+    │   ├── LocalAIProvider.ts  # unconfigured stub (chat() throws)
     │   ├── KnowledgeGraph.ts
     │   ├── ContextEngine.ts
-    │   ├── CodeIndexer.ts
-    │   └── index-project.js    # Build-time code-index CLI helper
-    ├── types/
-    │   ├── NetworkTypes.ts
-    │   ├── LogTypes.ts
-    │   ├── EventTypes.ts
-    │   ├── ErrorTypes.ts
-    │   └── AITypes.ts
+    │   ├── CodeIndexer.ts      # Node-only regex/heuristic indexer
+    │   └── index-project.js    # CLI wrapper around CodeIndexer
+    ├── types/                  # NetworkTypes, LogTypes, EventTypes, ErrorTypes, AITypes
+    ├── utils/
+    │   └── redact.ts           # redactHeaders / redactFields
     └── index.ts                # Public API barrel
 ```
 
-Storage is synchronous (methods return values/arrays, not Promises) and backed by an in-memory ring buffer that evicts the oldest entries. You can supply your own storage by implementing the exported `AppLensStorage` interface.
+Storage is synchronous (methods return values/arrays, not Promises) and backed by an in-memory ring buffer that evicts the oldest entries. `AppLensStorage` is exported as an interface so you can read it via `AppLens.getStorage()`; there is no public setter to swap the implementation today.
+
+For the full engineering spec, implementation-status table, phased roadmap, and the "Do not build yet" list, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ---
 
 ## Exports
 
-Values: `AppLens`, `AppLensProvider`, `useAppLens`, `AppLensUI`, `AppLensModal`, `AppLensTrigger`, `createAIProvider`, `OpenAIProvider`, `LocalAIProvider`, `KnowledgeGraph`, `ContextEngine`.
+Values: `AppLens`, `AppLensProvider`, `useAppLens`, `AppLensUI`, `AppLensModal`, `AppLensTrigger`, `redactHeaders`, `redactFields`, `createAIProvider`, `OpenAIProvider`, `LocalAIProvider`, `KnowledgeGraph`, `ContextEngine`.
 
 Types: `AppLensConfig`, `NetworkRequest`, `LogEntry`, `LogLevel`, `AppEvent`, `AppError`, `AIMessage`, `AIConversation`, `ContextChunk`, `AppLensStorage`, `AIProvider`, `GraphNode`, `NodeType`.
 
@@ -393,10 +484,11 @@ Types: `AppLensConfig`, `NetworkRequest`, `LogEntry`, `LogLevel`, `AppEvent`, `A
 ## Known Limitations
 
 - **Promise-rejection capture depends on Hermes.** Unhandled rejection tracking uses the Hermes rejection tracker when available; on other engines it is a no-op (uncaught errors are still captured via `ErrorUtils`).
-- **`persistLogs` is reserved.** The flag exists in the config but persistence is not yet implemented — all data is in-memory and cleared on reload.
-- **AI requires a backend.** Without `aiApiKey` (OpenAI) or an `aiBaseURL` (LM Studio), the AI tab falls back to the `local` stub provider, which returns canned guidance rather than real answers.
-- **Code Indexer is Node-only.** `ai/index-project.js` runs as a build-time CLI script; the in-app AI draws on the pre-built index and live runtime context rather than re-indexing on-device.
-- **No automated test suite.** Verification is `npx tsc --noEmit` (strict type-check).
+- **`persistLogs` and `verboseLogging` are reserved.** Both flags exist in the config but are not consumed yet — all data is in-memory and cleared on reload.
+- **The `local` AI provider is a stub.** Without `aiApiKey` (OpenAI) or an `aiBaseURL` (LM Studio), the AI tab falls back to the `local` provider, which shows a setup prompt (it does not answer).
+- **`NetworkRequest.context` is not populated.** Runtime→source correlation is planned, not implemented.
+- **Code Indexer is Node-only and heuristic.** `ai/index-project.js` runs as a build-time CLI; the in-app AI draws on the pre-built manifest and live runtime context rather than re-indexing on-device.
+- **No automated test suite in the library.** Verification is `npx tsc --noEmit` (strict type-check). (The Example app has Jest tests.)
 
 ---
 

@@ -5,6 +5,51 @@ All notable changes to `@applens/react-native` are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1]
+
+### Added
+
+- **Body-field redaction.** When `config.redaction` is set, `NetworkInterceptor`
+  best-effort parses JSON request/response bodies and redacts any field named in
+  `redaction.fields` (defaulting to
+  `['password','token','secret','accessToken','refreshToken']` when `fields` is
+  omitted). Parse failures and non-JSON bodies are left untouched; redaction
+  never throws. Header redaction (`redactHeaders`) is unchanged.
+- `redactFields` is now exported from the public API (alongside `redactHeaders`).
+- New `docs/ARCHITECTURE.md` — the engineering spec with a real module map,
+  data-type reference, an Implementation Status table, a phased roadmap
+  (phases 1–11), a "Do not build yet" list, and the spec-vs-code divergence note.
+- Example app: an **AI Test Lab** tab with runnable scenarios that generate
+  deterministic runtime evidence (failed request, response-shape mismatch,
+  runtime error, slow request, event funnel, secret redaction, code correlation)
+  plus tap-to-copy suggested questions for the AI tab.
+
+### Changed
+
+- Rewrote `README.md` as the single primary user-facing doc: real API names
+  (`AppLens` singleton + `AppLensUI`), a full config table with defaults, the
+  complete public API and export lists, per-feature notes (50 KB body
+  truncation, Hermes-only rejection capture, `NetworkRequest.context` not
+  populated), a corrected AI/provider section, and the Code Indexer usage.
+- Reduced `DELIVERY.md` to a short pointer to `README.md` and
+  `docs/ARCHITECTURE.md`.
+- `SettingsTab` footer now renders `AppLens v${AppLens.getVersion()}` instead of
+  a hardcoded version string.
+
+### Fixed
+
+- **Version string fix.** `SettingsTab` previously showed a hardcoded
+  `AppLens v0.1.0`; it now reflects the real version via `getVersion()`.
+  `package.json`, `getVersion()`, and the Settings footer all agree at `0.2.1`.
+- **Docs correction.** The 0.2.0 notes claimed the shared `redactFields` utility
+  was "used across the library" — it was dead code until this release. Body-field
+  redaction is now actually wired through `NetworkInterceptor` (see Added).
+- **Docs correction.** Removed the inaccurate claim that the `local` AI provider
+  returns canned guidance. `LocalAIProvider` is an unconfigured stub whose
+  `chat()` throws, so the AI tab shows a setup prompt instead.
+- Example: fixed the pre-existing Jest failure (`transformIgnorePatterns` now
+  allowlists the required RN/navigation packages; added a `jest.setup.js`).
+
 ## [0.2.0]
 
 ### Added
@@ -19,8 +64,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - A new **Errors** tab in the debug modal (search, clear, fatal/non-fatal
     badge, expandable stack trace).
   - Errors total/fatal counts and a library version row on the Overview tab.
-- **Shared redaction utilities** (`redactHeaders` / `redactFields`) used across
-  the library; both replace matched values with `[REDACTED]`.
+- **Shared redaction utilities** (`redactHeaders` / `redactFields`); both replace
+  matched values with `[REDACTED]`. (At 0.2.0 only `redactHeaders` was wired in;
+  `redactFields` became active in 0.2.1 — see above.)
 - `AppLens.reset()` — detaches all interceptors, clears every data store, and
   marks AppLens uninitialized.
 - `AppLens.getVersion()` — returns the library version string.

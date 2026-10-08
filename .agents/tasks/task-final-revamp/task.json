@@ -1,0 +1,7 @@
+{
+  "task_id": "task-final-revamp",
+  "task_description": "Final documentation revamp of the AppLens React Native library (consolidate docs to match current implementation, with the broader vision as a labeled roadmap) and add 4-6 deterministic AI-capability test scenarios to the Example app. Work directly on branch `modal`, no commit/push, leave changes uncommitted.",
+  "status": "completed",
+  "feature_order": ["FEAT-001", "FEAT-002"],
+  "blocked_reason": null
+}

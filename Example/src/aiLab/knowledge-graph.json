@@ -1,0 +1,84 @@
+[
+  {
+    "name": "scenarios",
+    "type": "component",
+    "file": "aiLab/scenarios.ts",
+    "dependencies": []
+  },
+  {
+    "name": "AppNavigator",
+    "type": "component",
+    "file": "navigation/AppNavigator.tsx",
+    "dependencies": [
+      "ProductListScreen",
+      "ProductDetailScreen",
+      "CartScreen",
+      "OrdersScreen",
+      "AILabScreen",
+      "product"
+    ]
+  },
+  {
+    "name": "AILabScreen",
+    "type": "screen",
+    "file": "screens/AILabScreen.tsx",
+    "dependencies": [
+      "scenarios"
+    ]
+  },
+  {
+    "name": "CartScreen",
+    "type": "screen",
+    "file": "screens/CartScreen.tsx",
+    "dependencies": [
+      "cartStore",
+      "product"
+    ]
+  },
+  {
+    "name": "OrdersScreen",
+    "type": "screen",
+    "file": "screens/OrdersScreen.tsx",
+    "dependencies": []
+  },
+  {
+    "name": "ProductDetailScreen",
+    "type": "screen",
+    "file": "screens/ProductDetailScreen.tsx",
+    "dependencies": [
+      "AppNavigator",
+      "cartStore"
+    ]
+  },
+  {
+    "name": "ProductListScreen",
+    "type": "screen",
+    "file": "screens/ProductListScreen.tsx",
+    "dependencies": [
+      "AppNavigator",
+      "product"
+    ]
+  },
+  {
+    "name": "CartProvider",
+    "type": "store",
+    "file": "store/cartStore.tsx",
+    "dependencies": [
+      "product"
+    ]
+  },
+  {
+    "name": "useCart",
+    "type": "store",
+    "file": "store/cartStore.tsx",
+    "dependencies": [
+      "product"
+    ]
+  },
+  {
+    "name": "product",
+    "type": "component",
+    "file": "types/product.ts",
+    "dependencies": []
+  }
+]

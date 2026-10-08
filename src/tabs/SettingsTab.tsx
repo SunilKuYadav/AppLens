@@ -136,7 +136,7 @@ export function SettingsTab(): React.JSX.Element {
         </View>
       </View>
 
-      <Text style={styles.version}>AppLens v0.1.0</Text>
+      <Text style={styles.version}>AppLens v{AppLens.getVersion()}</Text>
       <View style={styles.bottomSpacer} />
     </ScrollView>
   );
