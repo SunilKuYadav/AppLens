@@ -89,7 +89,7 @@ export class NetworkInterceptor {
     | null = null;
 
   // ─── Fetch original ───────────────────────────────────────────────────────
-  private originalFetch: typeof global.fetch | null = null;
+  private originalFetch: typeof fetch | null = null;
 
   constructor(storage: AppLensStorage, config: AppLensConfig) {
     this.storage = storage;
@@ -122,7 +122,7 @@ export class NetworkInterceptor {
         this.originalXHRSetRequestHeader as typeof XMLHttpRequest.prototype.setRequestHeader;
     }
     if (this.originalFetch) {
-      global.fetch = this.originalFetch;
+      (globalThis as typeof globalThis & { fetch: typeof fetch }).fetch = this.originalFetch;
     }
     this.originalXHROpen = null;
     this.originalXHRSend = null;
@@ -301,10 +301,10 @@ export class NetworkInterceptor {
   private patchFetch(): void {
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const interceptor = this;
-    this.originalFetch = global.fetch;
+    this.originalFetch = (globalThis as typeof globalThis & { fetch: typeof fetch }).fetch;
     const originalFetch = this.originalFetch;
 
-    global.fetch = async function (
+    (globalThis as typeof globalThis & { fetch: typeof fetch }).fetch = async function (
       input: RequestInfo | URL,
       init?: RequestInit,
     ): Promise<Response> {
@@ -386,7 +386,7 @@ export class NetworkInterceptor {
       });
 
       try {
-        const response = await originalFetch(input, init);
+        const response = await originalFetch(input as RequestInfo, init);
         const duration = Date.now() - startTime;
 
         // Clone to read body without consuming the original stream
