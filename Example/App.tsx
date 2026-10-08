@@ -12,7 +12,10 @@ AppLens.initialize({
   network: true,
   console: true,
   events: true,
-  ai: false,
+  ai: true,
+  aiProvider: 'lmstudio',
+  aiBaseURL: 'http://127.0.0.1:1234/v1',
+  aiModel: 'qwen2.5-coder-14b-instruct',
 });
 
 console.log('ShopDemo: AppLens initialized');
