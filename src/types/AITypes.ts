@@ -1,7 +1,10 @@
 /**
  * Supported AI provider backends.
+ * - 'openai'    — OpenAI API (requires aiApiKey)
+ * - 'lmstudio'  — LM Studio local server (OpenAI-compatible, no key needed)
+ * - 'local'     — stub for on-device inference
  */
-export type AIProviderType = 'openai' | 'local';
+export type AIProviderType = 'openai' | 'lmstudio' | 'local';
 
 /**
  * A single message in an AI conversation.

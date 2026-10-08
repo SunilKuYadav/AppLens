@@ -14,7 +14,6 @@ import { AppLens } from '../core/AppLens';
 import { AIMessage } from '../types/AITypes';
 import { AIProvider, createAIProvider } from '../ai/AIProvider';
 import { ContextEngine } from '../ai/ContextEngine';
-import { KnowledgeGraph } from '../ai/KnowledgeGraph';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -84,21 +83,28 @@ function MessageBubble({ message }: BubbleProps): React.JSX.Element {
 function SetupPrompt(): React.JSX.Element {
   return (
     <View style={styles.setupContainer}>
-      <Text style={styles.setupEmoji}>🔑</Text>
+      <Text style={styles.setupEmoji}>🤖</Text>
       <Text style={styles.setupTitle}>Configure AppLens AI</Text>
       <Text style={styles.setupBody}>
-        AppLens AI requires an OpenAI API key to function.
-        {'\n\n'}
-        Add your key during initialization:
+        AppLens AI needs an AI provider to function.
       </Text>
+
+      <Text style={styles.setupSectionLabel}>Option 1 — LM Studio (local)</Text>
       <View style={styles.codeBlock}>
         <Text style={styles.codeText}>
-          {'AppLens.initialize({\n  aiApiKey: \'sk-...\',\n});'}
+          {"AppLens.initialize({\n  ai: true,\n  aiProvider: 'lmstudio',\n  // optional — defaults to http://127.0.0.1:1234/v1\n  aiBaseURL: 'http://127.0.0.1:1234/v1',\n});"}
         </Text>
       </View>
+
+      <Text style={styles.setupSectionLabel}>Option 2 — OpenAI</Text>
+      <View style={styles.codeBlock}>
+        <Text style={styles.codeText}>
+          {"AppLens.initialize({\n  ai: true,\n  aiProvider: 'openai',\n  aiApiKey: 'sk-...',\n});"}
+        </Text>
+      </View>
+
       <Text style={styles.setupBody}>
-        Once configured, you can ask questions about your app's architecture,
-        debug network failures, trace data flows, and more.
+        Once configured, ask about your app's architecture, debug failures, trace data flows, and more.
       </Text>
     </View>
   );
@@ -118,19 +124,21 @@ const WELCOME_MESSAGE: AIMessage = {
 export function AITab(): React.JSX.Element {
   const config = AppLens.getConfig();
 
-  // Lazily create the provider and engines — they don't change unless the config does.
-  const providerRef = useRef<AIProvider | null>(null);
+  // Re-create the provider whenever the AI-related config fields change.
+  // Using a ref keyed to a config fingerprint avoids unnecessary recreation
+  // while still picking up changes from initialize() or Settings toggles.
+  const configKey = `${config.aiProvider}|${config.aiApiKey ?? ''}|${config.aiBaseURL ?? ''}|${config.aiModel ?? ''}`;
+  const providerRef = useRef<{ key: string; provider: AIProvider } | null>(null);
   const contextEngineRef = useRef<ContextEngine | null>(null);
 
-  if (providerRef.current === null) {
-    providerRef.current = createAIProvider(config);
+  if (providerRef.current === null || providerRef.current.key !== configKey) {
+    providerRef.current = { key: configKey, provider: createAIProvider(config) };
   }
   if (contextEngineRef.current === null) {
-    const graph = new KnowledgeGraph();
-    contextEngineRef.current = new ContextEngine(AppLens.getStorage(), graph);
+    contextEngineRef.current = new ContextEngine(AppLens.getStorage(), AppLens.getKnowledgeGraph());
   }
 
-  const provider = providerRef.current;
+  const provider = providerRef.current.provider;
   const contextEngine = contextEngineRef.current;
 
   const [messages, setMessages] = useState<AIMessage[]>([WELCOME_MESSAGE]);
@@ -430,6 +438,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     lineHeight: 22,
+  },
+  setupSectionLabel: {
+    color: '#00ff88',
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    alignSelf: 'flex-start',
+    marginTop: 8,
   },
   codeBlock: {
     backgroundColor: '#1a1a1a',

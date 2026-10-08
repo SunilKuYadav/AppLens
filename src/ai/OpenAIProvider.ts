@@ -14,13 +14,17 @@ export class OpenAIProvider implements AIProvider {
   private readonly model: string;
   private readonly apiKey: string;
 
-  constructor(apiKey: string, model: string = 'gpt-4o') {
+  constructor(apiKey: string, model: string = 'gpt-4o', baseURL?: string) {
     this.apiKey = apiKey;
     this.model = model;
-    this.client = new OpenAI({ apiKey });
+    this.client = new OpenAI({
+      apiKey: apiKey || 'lm-studio', // LM Studio ignores the key but the SDK requires a non-empty string
+      ...(baseURL ? { baseURL } : {}),
+    });
   }
 
   isConfigured(): boolean {
+    // 'lm-studio' is the dummy key used for LM Studio — always considered configured
     return this.apiKey.length > 0;
   }
 
@@ -73,18 +77,22 @@ export class OpenAIProvider implements AIProvider {
   private buildSystemPrompt(chunks: ContextChunk[]): string {
     const persona = [
       'You are AppLens AI — an expert developer assistant embedded inside a React Native application.',
-      'You have access to the application\'s real-time runtime data including network requests, console logs,',
-      'application events, and the source-code knowledge graph.',
-      'Your answers should be evidence-based. Clearly distinguish between confirmed facts, strong evidence,',
-      'possible causes, and speculation. Reference specific files, components, functions, and API endpoints',
-      'when they are relevant. Never confidently invent application behaviour.',
+      'The context blocks below contain REAL, LIVE data captured from the running application:',
+      'network requests, console logs, application events, and the source-code structure.',
+      'When context blocks are provided, use them to give specific, accurate answers.',
+      'Do NOT say you lack access to runtime data — it is provided in the context blocks below.',
+      'Do NOT say you cannot see the app or project — the knowledge graph block describes exactly what is in it.',
+      '',
+      'Your answers should be evidence-based. Clearly distinguish between confirmed facts (from context),',
+      'strong evidence, possible causes, and speculation. Reference specific files, components,',
+      'functions, and API endpoints when they appear in the context.',
       '',
       'Format your responses with clear sections. Use plain text — avoid markdown that would not render',
       'well in a mobile developer console.',
     ].join('\n');
 
     if (chunks.length === 0) {
-      return persona;
+      return persona + '\n\nNote: No runtime context was captured yet. The app may just have started or no network/log activity has occurred.';
     }
 
     const contextBlocks = chunks

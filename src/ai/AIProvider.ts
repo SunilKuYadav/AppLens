@@ -25,10 +25,17 @@ export interface AIProvider {
 /**
  * Factory that picks the right AI provider based on the AppLens configuration.
  *
- * - Returns an OpenAIProvider when `aiProvider === 'openai'` and `aiApiKey` is set.
- * - Falls back to LocalAIProvider (stub) in all other cases.
+ * - 'openai'   — OpenAIProvider with the configured API key
+ * - 'lmstudio' — OpenAIProvider pointed at LM Studio's local OpenAI-compatible endpoint
+ * - 'local'    — LocalAIProvider stub
  */
 export function createAIProvider(config: AppLensConfig): AIProvider {
+  if (config.aiProvider === 'lmstudio') {
+    const baseURL = config.aiBaseURL ?? 'http://127.0.0.1:1234/v1';
+    // LM Studio uses just-in-time loading — pass 'lm-studio' as a dummy key
+    return new OpenAIProvider('lm-studio', config.aiModel ?? 'local-model', baseURL);
+  }
+
   if (
     config.aiProvider === 'openai' &&
     typeof config.aiApiKey === 'string' &&
@@ -37,6 +44,7 @@ export function createAIProvider(config: AppLensConfig): AIProvider {
     return new OpenAIProvider(
       config.aiApiKey,
       config.aiModel ?? 'gpt-4o',
+      config.aiBaseURL,
     );
   }
 

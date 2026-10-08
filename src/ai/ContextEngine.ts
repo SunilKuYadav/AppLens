@@ -22,6 +22,12 @@ const GRAPH_KEYWORDS = new Set([
   'structure', 'where', 'which', 'uses', 'calls', 'imports',
 ]);
 
+/** Words that indicate a broad overview question — always pull full context. */
+const BROAD_QUESTION_WORDS = new Set([
+  'project', 'app', 'about', 'overview', 'architecture', 'tell', 'describe',
+  'what', 'explain', 'summary', 'summarize', 'general', 'everything', 'all',
+]);
+
 /** Approximate character-to-token ratio for rough token budget estimation. */
 const CHARS_PER_TOKEN = 4;
 
@@ -112,14 +118,22 @@ export class ContextEngine {
 
   // ─── Private builders ───────────────────────────────────────────────────
 
+  private isBroadQuestion(question: string): boolean {
+    const lower = question.toLowerCase();
+    return [...BROAD_QUESTION_WORDS].some((word) => lower.includes(word));
+  }
+
   private buildNetworkChunks(keywords: string[]): ContextChunk[] {
     const allRequests = this.storage.getNetworkRequests();
 
-    // Most recent first; filter by URL keyword match
-    const matched = allRequests
-      .slice()
-      .reverse()
-      .filter((req) => keywords.length === 0 || containsAny(req.url, keywords));
+    // Most recent first; filter by URL keyword match, always include last 3 as baseline
+    const reversed = allRequests.slice().reverse();
+    const matched = reversed.filter((req) => {
+      if (keywords.length === 0) return true;
+      // Always include the most recent 3 requests as baseline
+      const idx = reversed.indexOf(req);
+      return idx < 3 || containsAny(req.url, keywords);
+    });
 
     // Take top 5
     const top = matched.slice(0, 5);
@@ -151,13 +165,22 @@ export class ContextEngine {
   private buildLogChunks(keywords: string[]): ContextChunk[] {
     const allLogs = this.storage.getLogs();
 
-    const matched = allLogs
-      .slice()
-      .reverse()
-      .filter(
-        (entry) =>
-          keywords.length === 0 || containsAny(entry.message, keywords),
-      );
+    const reversedLogs = allLogs.slice().reverse();
+    const errorWarns = reversedLogs
+      .filter((e) => e.level === 'error' || e.level === 'warn')
+      .slice(0, 3);
+    const keywordMatched = reversedLogs.filter(
+      (entry) => keywords.length > 0 && containsAny(entry.message, keywords),
+    );
+    // Merge: baseline errors/warns + keyword matches, deduplicated
+    const seen = new Set<string>();
+    const matched: typeof allLogs = [];
+    for (const entry of [...errorWarns, ...keywordMatched]) {
+      if (!seen.has(entry.id)) {
+        seen.add(entry.id);
+        matched.push(entry);
+      }
+    }
 
     const top = matched.slice(0, 10);
 
@@ -208,24 +231,23 @@ export class ContextEngine {
     question: string,
     keywords: string[],
   ): ContextChunk | null {
-    const lowerQuestion = question.toLowerCase();
-    const hasGraphKeyword =
-      keywords.some((kw) => GRAPH_KEYWORDS.has(kw)) ||
-      [...GRAPH_KEYWORDS].some((gk) => lowerQuestion.includes(gk));
-
-    if (!hasGraphKeyword) {
-      return null;
-    }
-
     const summary = this.graph.toSummary();
     if (summary.includes('empty')) {
       return null;
     }
 
+    const lowerQuestion = question.toLowerCase();
+    const hasGraphKeyword =
+      keywords.some((kw) => GRAPH_KEYWORDS.has(kw)) ||
+      [...GRAPH_KEYWORDS].some((gk) => lowerQuestion.includes(gk));
+    const isBroad = this.isBroadQuestion(question);
+
+    // Always include: graph is populated and (broad question OR graph keyword OR always include)
+    // The graph summary is compact and always relevant — include it unconditionally when populated.
     return {
       type: 'graph' as const,
       content: truncate(summary, MAX_CHUNK_BODY_CHARS * 4),
-      relevanceScore: 0.8,
+      relevanceScore: (hasGraphKeyword || isBroad) ? 0.95 : 0.8,
     };
   }
 

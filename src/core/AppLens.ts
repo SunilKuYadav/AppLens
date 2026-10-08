@@ -4,6 +4,8 @@ import { MemoryStorage } from '../storage/MemoryStorage';
 import { NetworkInterceptor } from '../interceptors/NetworkInterceptor';
 import { ConsoleInterceptor } from '../interceptors/ConsoleInterceptor';
 import { AppEvent } from '../types/EventTypes';
+import { KnowledgeGraph } from '../ai/KnowledgeGraph';
+import { GraphNode } from '../ai/KnowledgeGraph';
 
 /** Generate a simple unique ID without external deps. */
 function generateId(): string {
@@ -32,6 +34,7 @@ class AppLensClass {
   private networkInterceptor: NetworkInterceptor | null = null;
   private consoleInterceptor: ConsoleInterceptor | null = null;
   private initialized: boolean = false;
+  private graph: KnowledgeGraph = new KnowledgeGraph();
 
   // Private constructor — consumers must use the exported singleton instance.
   // eslint-disable-next-line @typescript-eslint/no-empty-function
@@ -91,6 +94,16 @@ class AppLensClass {
   /** Return the shared storage instance. */
   getStorage(): AppLensStorage {
     return this.storage;
+  }
+
+  /** Load (or replace) the knowledge graph from a manifest produced by CodeIndexer. */
+  loadKnowledgeGraph(manifest: GraphNode[]): void {
+    this.graph = KnowledgeGraph.buildFromManifest(manifest);
+  }
+
+  /** Return the current knowledge graph instance. */
+  getKnowledgeGraph(): KnowledgeGraph {
+    return this.graph;
   }
 
   /**

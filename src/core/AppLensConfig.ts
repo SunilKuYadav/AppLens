@@ -18,10 +18,12 @@ export interface AppLensConfig {
   ai: boolean;
   /** Which AI backend to use */
   aiProvider: AIProviderType;
-  /** API key for the AI provider (never logged) */
+  /** API key for the AI provider (never logged). Not required for lmstudio. */
   aiApiKey?: string;
-  /** Model identifier (e.g. 'gpt-4o') */
+  /** Model identifier — e.g. 'gpt-4o' for OpenAI, or the model name shown in LM Studio */
   aiModel?: string;
+  /** Override the base URL for the AI provider (e.g. 'http://127.0.0.1:1234/v1' for LM Studio) */
+  aiBaseURL?: string;
   /** Header names whose values should be replaced with '[REDACTED]' */
   redactHeaders: string[];
   /** Absolute path to the application's project root for source indexing */
@@ -47,6 +49,7 @@ export const DEFAULT_CONFIG: AppLensConfig = {
   aiProvider: 'openai',
   aiApiKey: undefined,
   aiModel: undefined,
+  aiBaseURL: undefined,
   redactHeaders: REDACTED_HEADERS,
   projectRoot: undefined,
   maxNetworkEntries: 500,
