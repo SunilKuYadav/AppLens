@@ -1,188 +1,137 @@
-# Implementation Plan — AppLens React Native Library
+# Implementation Plan — AppLens v0.1.0 → v0.2.0 Upgrade
 
-## Context
+## Context (verified by reading the codebase)
 
-**Library root:** `/Users/sunilkumar/Desktop/project/AppLens/AppLens/` (macOS case-insensitive; `applens` resolves to the same directory)  
-**Integration target:** `/Users/sunilkumar/Desktop/project/AppLens/triveni-point/`  
-**Verification command (library):** `cd /Users/sunilkumar/Desktop/project/AppLens/AppLens && npm install && npx tsc --noEmit`  
-**Verification command (integration):** `cd /Users/sunilkumar/Desktop/project/AppLens/triveni-point && npm install && npx tsc --noEmit`
+- **Library root:** `/Users/sunilkumar/Desktop/project/AppLens/AppLens/`
+- **Package:** `@applens/react-native` (NOTE: actual name is `@applens/react-native`, NOT `@app-lens/react-native` from the product brief — keep the existing name for backward compat).
+- **Version today:** `0.1.0` in `package.json`. Target: `0.2.0`.
+- **No build step.** `main` and `types` both point to `src/index.ts`. Library ships raw TypeScript.
+- **Verify command:** `cd /Users/sunilkumar/Desktop/project/AppLens/AppLens && npx tsc --noEmit` must exit 0.
+- **Branch:** `dev`, clean working tree. Node v20.20.0 available.
+- **triveni-point** exists at `/Users/sunilkumar/Desktop/project/AppLens/triveni-point/` but is OUT OF SCOPE for this task — do not modify it.
 
-### Key decisions recorded
+### Decisions recorded (with rationale)
 
-- **No bundler** — library ships raw TypeScript. Metro resolves `src/index.ts` directly via the `file:` dep path. No compile step required.
-- **Manual tab navigation** — plain React state (`activeTab: string`), no react-navigation. Required by spec.
-- **XHR + fetch interception** — patched at the global level, NOT via axios interceptors, so it works in any RN app regardless of HTTP client.
-- **KnowledgeGraph runtime limitation** — React Native has no `fs` module; KnowledgeGraph works from a pre-built manifest. CodeIndexer is a standalone Node.js script that builds the manifest at dev time.
-- **OpenAI package** — `openai@^4.0.0` is the only permitted external dep. `gpt-4o` is the default model.
-- **Dark theme** — AppLens uses its own independent dark palette (`#0d0d0d` background, `#1a1a1a` cards) decoupled from Triveni Point's theme system.
-- **Naming clarity** — The module exports two things with related names: `AppLens` (the singleton instance, call `AppLens.initialize()`) and `AppLensDebugUI` (the React component, render `<AppLensDebugUI />`). index.ts exports both under clear names.
+- **D1 — Fix the pre-existing tsconfig error FIRST.** `npx tsc --noEmit` currently FAILS with `TS5095: Option 'bundler' can only be used when 'module' is set to 'preserve' or 'es2015' or later` because `tsconfig.json` has `module: "commonjs"` + `moduleResolution: "bundler"`. The source itself compiles clean under `--moduleResolution node` (verified). Fix: change `moduleResolution` from `"bundler"` to `"node"` in `tsconfig.json`. Chosen over changing `module` because `commonjs` is the working, established setting and `node` resolution matches how Metro/RN consume the package. Without this fix, step 10 verification can never pass.
+- **D2 — Storage stays SYNCHRONOUS.** The existing `AppLensStorage` interface and `MemoryStorage` are fully synchronous (`addLog(e): void`, `getLogs(): LogEntry[]`). The brief's suggested `Promise<void>` signatures would be a breaking change to the whole storage contract and all call sites (interceptors, provider, tabs). Keep the error methods synchronous to match: `addError(error: AppError): void`, `getErrors(query?: { limit?: number }): AppError[]`, `clearErrors(): void`. This preserves backward compat (principle 13) and matches every existing pattern.
+- **D3 — Shared redaction utility is generic.** The inline `redactHeaders` in `NetworkInterceptor.ts` operates on `Record<string, string>`. The new `src/utils/redact.ts` uses `Record<string, unknown>` per the brief. `NetworkInterceptor` builds string-valued header maps, which are assignable to `Record<string, unknown>`, and the function returns the same shape — so the interceptor keeps its `Record<string, string>` locals by casting the result. Verified assignable under strict mode.
+- **D4 — UI component names unchanged.** The brief references `AppLensDebugUI`, but the actual exported component is `AppLensUI` (plus `AppLensModal`, `AppLensTrigger`, `AppLensProvider`). Renaming would break the public API (principle 13) and the Example/triveni integration. Keep `AppLensUI` as the primary component; do NOT add or rename to `AppLensDebugUI`. Docs will document `AppLensUI`.
+- **D5 — Tab list lives in `AppLensModal.tsx`.** There is no central tab container config; `TABS` is a `const` array in `AppLensModal.tsx` and `TabName` is a union in `AppLensProvider.tsx`. Adding the Errors tab means editing both. The tab bar is ALREADY horizontally scrollable (`ScrollView horizontal`), so that sub-requirement is already satisfied — the plan still re-verifies it.
+- **D6 — Confidence badge parsing.** The AI providers do not emit a structured confidence field; `AITab` must parse a `Confidence: High|Medium|Low` substring out of the assistant's plain-text reply. The OpenAI system prompt will be updated to ask the model to end replies with such a line so the badge has something to parse; absence of the line simply shows no badge.
+- **D7 — Docs are a full rewrite.** Current `README.md` and `DELIVERY.md` describe features that DO NOT exist in code (a Zustand `store/AppLensStore.ts`, `persistLogs` via AsyncStorage, a `sensitiveHeaders` config field). The real config field is `redactHeaders`. The rewrite must describe only what actually ships.
 
----
-
-## FEAT-001 — Package scaffold, types, config, storage, interceptors
-
-This is the foundation. All other items depend on the exports created here.
-
-- [ ] 1. Create `package.json`, `tsconfig.json`, `babel.config.js` at library root.
-      - `package.json`: name `@applens/react-native`, version `0.1.0`, main/types both `src/index.ts`, peerDeps react>=18 + react-native>=0.71, deps `openai@^4.0.0`, scripts `{ "type-check": "tsc --noEmit" }`.
-      - `tsconfig.json`: extends `@react-native/typescript-config/tsconfig.json`, overrides strict true, jsx react-native, noEmit true, skipLibCheck true, moduleResolution node, baseUrl `.`, include `["**/*.ts","**/*.tsx"]`, exclude `["node_modules"]`.
-      - `babel.config.js`: `module.exports = { presets: ['module:@react-native/babel-preset'] }`.
-      - Files: `/Users/sunilkumar/Desktop/project/AppLens/AppLens/package.json`, `tsconfig.json`, `babel.config.js`
-      - Verify: `cd /Users/sunilkumar/Desktop/project/AppLens/AppLens && npm install` completes without error.
-
-- [ ] 2. Create all four type files.
-      - `src/types/NetworkTypes.ts` — exports `NetworkRequest` interface (id, method, url, status?, statusText?, requestHeaders, responseHeaders, requestBody?, responseBody?, duration?, timestamp, error?, state: `'pending'|'complete'|'error'`, context?: `{ screen?, hook?, service?, event? }`). Also exports `REDACTED_HEADERS = ['authorization','cookie','x-api-key','x-auth-token','x-access-token','x-secret']` (all lowercase for case-insensitive comparison).
-      - `src/types/LogTypes.ts` — exports `LogLevel = 'log'|'info'|'warn'|'error'|'debug'`, `LogEntry` (id, level, message, args: unknown[], timestamp, stack?).
-      - `src/types/EventTypes.ts` — exports `AppEvent` (id, name, timestamp, properties?: Record<string, unknown>).
-      - `src/types/AITypes.ts` — exports `AIMessage` (id, role: `'user'|'assistant'|'system'`, content, timestamp), `AIConversation` (messages: AIMessage[]), `AIProviderType = 'openai'|'local'`, `ContextChunk` (type: `'network'|'log'|'event'|'graph'|'code'`, content, relevanceScore).
-      - Files: `src/types/NetworkTypes.ts`, `src/types/LogTypes.ts`, `src/types/EventTypes.ts`, `src/types/AITypes.ts`
-      - Verify: `npx tsc --noEmit` — no errors on these files.
-
-- [ ] 3. Create `AppLensConfig.ts` and `DEFAULT_CONFIG`.
-      - `src/core/AppLensConfig.ts` — exports `AppLensConfig` interface (enabled, network, console, events, ai, aiProvider: AIProviderType, aiApiKey?, aiModel?, redactHeaders: string[], projectRoot?, maxNetworkEntries: number, maxLogEntries: number, maxEventEntries: number). Exports `DEFAULT_CONFIG` with all feature booleans true, aiProvider `'openai'`, aiModel `'gpt-4o'`, redactHeaders = REDACTED_HEADERS, maxNetworkEntries 500, maxLogEntries 1000, maxEventEntries 500.
-      - Files: `src/core/AppLensConfig.ts`
-      - Verify: `npx tsc --noEmit`
-
-- [ ] 4. Create `AppLensStorage` interface and `MemoryStorage` implementation.
-      - `src/storage/AppLensStorage.ts` — interface with: `addNetworkRequest`, `updateNetworkRequest(id, Partial<NetworkRequest>)`, `getNetworkRequests`, `clearNetworkRequests`, `addLog`, `getLogs`, `clearLogs`, `addEvent`, `getEvents`, `clearEvents`, `subscribe(listener: () => void): () => void` (returns unsubscribe fn).
-      - `src/storage/MemoryStorage.ts` — `implements AppLensStorage`. Three arrays with per-array max cap. Ring buffer logic: when array.length >= max, shift() the oldest item before push(). Listeners: `private listeners = new Set<() => void>()`. `subscribe` adds to set, returns a function that deletes from set. Every mutation calls `this.notify()` which iterates the set. All operations are synchronous.
-      - Files: `src/storage/AppLensStorage.ts`, `src/storage/MemoryStorage.ts`
-      - Verify: `npx tsc --noEmit`
-
-- [ ] 5. Create `NetworkInterceptor`.
-      - `src/interceptors/NetworkInterceptor.ts` — Exports class `NetworkInterceptor`. Constructor receives `storage: AppLensStorage` and `config: AppLensConfig`. `attach()` method: (a) save `globalThis.XMLHttpRequest` as `_origXHR`, replace with a subclass that overrides `open()` (captures method+url), `send()` (captures body, timestamps start, calls `storage.addNetworkRequest(...)` with state `'pending'`), overrides `onload` setter/getter to wrap the handler and on load: captures status, response headers (via `getAllResponseHeaders()`), response body (this.responseText, truncated at 50KB), calculates duration, calls `storage.updateNetworkRequest(..., { state:'complete', ... })`. Override `onerror` similarly with state `'error'`. (b) save `globalThis.fetch` as `_origFetch`, replace with async wrapper that does the same capture/update pattern using the Response clone. `detach()` restores originals. **Header redaction**: before storing any headers object, iterate entries; if the lowercase key matches any entry in `config.redactHeaders`, replace the value with `'[REDACTED]'`. Accept `config.redactHeaders` as lowercase strings and always compare `headerKey.toLowerCase()`. Export class.
-      - Files: `src/interceptors/NetworkInterceptor.ts`
-      - Verify: `npx tsc --noEmit`
-
-- [ ] 6. Create `ConsoleInterceptor`.
-      - `src/interceptors/ConsoleInterceptor.ts` — saves references to original `console.log/info/warn/error/debug`. `attach()` replaces each with a wrapper that: calls the original first (preserves dev console output), generates a `LogEntry` with `id = Math.random().toString(36).slice(2)`, `level`, `message = String(args[0] ?? '')`, `args`, `timestamp = Date.now()`, `stack` captured via `new Error().stack` (strip the first 2 lines which are the Error constructor and the interceptor frame itself). Calls `storage.addLog(entry)`. `detach()` restores originals. Export class.
-      - Files: `src/interceptors/ConsoleInterceptor.ts`
-      - Verify: `npx tsc --noEmit`
-
-- [ ] 7. Create the `AppLens` singleton and a stub `AppLensProvider`.
-      - `src/core/AppLens.ts` — private constructor. Private fields: `_config`, `_storage: MemoryStorage`, `_networkInterceptor: NetworkInterceptor`, `_consoleInterceptor: ConsoleInterceptor`, `_initialized = false`. Public API: `initialize(config: Partial<AppLensConfig>): void` — merges with DEFAULT_CONFIG, calls `attach()` on interceptors only if not already initialized (guard with `_initialized` flag, set after first call). `getConfig(): AppLensConfig`. `getStorage(): AppLensStorage`. `trackEvent(name, properties?)` — creates AppEvent with `id`, `timestamp: Date.now()`, calls `storage.addEvent()`. `isEnabled(): boolean`. Exports `const AppLens = new _AppLens()` (private-named class). Export named `{ AppLens }`.
-      - `src/core/AppLensProvider.tsx` — stub that renders `<>{children}</>`. Will be replaced in FEAT-002. Export `AppLensProvider`.
-      - `src/index.ts` — barrel: `export { AppLens } from './core/AppLens'`; `export { AppLensProvider } from './core/AppLensProvider'`; all type exports. Add a TODO comment for the AppLensDebugUI component export (added in FEAT-002).
-      - Files: `src/core/AppLens.ts`, `src/core/AppLensProvider.tsx`, `src/index.ts`
-      - Verify: `cd /Users/sunilkumar/Desktop/project/AppLens/AppLens && npx tsc --noEmit` — exits 0.
+### Constraints enforced throughout
+No new external npm dependencies. No breaking changes to existing exports. No build step. Dark theme only (bg `#0d0d0d`, cards `#1a1a1a`, accent `#00ff88`). No react-navigation. TypeScript strict mode — every item ends green on `npx tsc --noEmit`.
 
 ---
 
-## FEAT-002 — UI layer: provider context, shared components, modal, tab screens
+## Plan
 
-Depends on FEAT-001. Creates all React components. AI tab created as a placeholder; FEAT-003 replaces it.
+- [ ] 1. Fix the blocking tsconfig error so `tsc` can run at all.
+      Change `moduleResolution` from `"bundler"` to `"node"` in `tsconfig.json` (keep `module: "commonjs"`). See decision D1.
+      Files: `tsconfig.json`
+      Verify: `cd /Users/sunilkumar/Desktop/project/AppLens/AppLens && npx tsc --noEmit` exits 0 (it currently fails with TS5095).
 
-- [ ] 8. Create `AppLensContext` and replace stub `AppLensProvider`.
-      - `src/core/AppLensProvider.tsx` — `AppLensContextValue` interface: `{ modalVisible: boolean; setModalVisible: (v: boolean) => void; activeTab: string; setActiveTab: (t: string) => void; selectedNetworkRequest: NetworkRequest | null; setSelectedNetworkRequest: (r: NetworkRequest | null) => void; selectedLogEntry: LogEntry | null; setSelectedLogEntry: (e: LogEntry | null) => void; networkRequests: NetworkRequest[]; logs: LogEntry[]; events: AppEvent[]; }`. Create context with `React.createContext`. `AppLensProvider` component: subscribes to `AppLens.getStorage().subscribe(...)` in a `useEffect`, re-fetches all three collections into state on every storage change. Provides context. Also exports `useAppLens()` hook. At bottom of file, export `AppLensDebugUI` component that renders `<AppLensProvider><AppLensTrigger /><AppLensModal /></AppLensProvider>` — this is what consumers put in their app. Update `src/index.ts` to `export { AppLensDebugUI } from './core/AppLensProvider'`.
-      - Files: `src/core/AppLensProvider.tsx`, `src/index.ts`
-      - Verify: `npx tsc --noEmit`
+- [ ] 2. Create the error type.
+      Add `src/types/ErrorTypes.ts` exporting `AppError { id: string; message: string; stack?: string; timestamp: number; isFatal: boolean }`. First confirm no `AppError`/error type already exists in `src/types/` (verified: only NetworkTypes, LogTypes, EventTypes, AITypes exist — no duplication).
+      Files: `src/types/ErrorTypes.ts`
+      Verify: `npx tsc --noEmit` exits 0.
 
-- [ ] 9. Create shared UI components.
-      - `src/components/Badge.tsx` — Props: `label: string, color: string, textColor?: string`. `View` with `borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2`. `Text` inside. Export `Badge`.
-      - `src/components/SearchBar.tsx` — `View` row: `TextInput` (flex 1) + `TouchableOpacity` × button (visible when value.length > 0). Dark themed. Props: `value, onChangeText, placeholder`. Export `SearchBar`.
-      - `src/components/JSONViewer.tsx` — Props: `data: unknown, maxHeight?: number`. Renders `ScrollView` with `Text` showing `JSON.stringify(data, null, 2)`. Monospace-ish via `fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace'`. Export `JSONViewer`.
-      - `src/components/NetworkEntry.tsx` — single list row. Method badge color map: GET=#3b82f6, POST=#22c55e, PUT=#f59e0b, DELETE=#ef4444, PATCH=#a855f7, default=#6b7280. Status color: 2xx=#22c55e, 3xx=#3b82f6, 4xx=#f59e0b, 5xx=#ef4444, undefined=#6b7280. Show truncated URL (max 40 chars with ellipsis). TouchableOpacity wraps the row. Export `NetworkEntry`.
-      - `src/components/LogEntry.tsx` — level badge color map: log=#6b7280, info=#3b82f6, warn=#f59e0b, error=#ef4444, debug=#06b6d4. Show timestamp as `new Date(entry.timestamp).toLocaleTimeString()`. Show truncated message (max 80 chars). Export `LogEntry` (rename to `LogEntryRow` internally to avoid naming clash with the `LogEntry` type if needed, but export as `LogEntry`).
-      - Files: `src/components/Badge.tsx`, `src/components/SearchBar.tsx`, `src/components/JSONViewer.tsx`, `src/components/NetworkEntry.tsx`, `src/components/LogEntry.tsx`
-      - Verify: `npx tsc --noEmit`
+- [ ] 3. Create the shared redaction utility.
+      Add `src/utils/redact.ts` with `redactHeaders(headers: Record<string, unknown>, sensitiveKeys: string[]): Record<string, unknown>` (case-insensitive key match against lowercased `sensitiveKeys`, replace matched values with `'[REDACTED]'`, never mutate input) and `redactFields(obj: unknown, sensitiveFields: string[]): unknown` (recursively deep-walk objects and arrays, redacting values whose key matches case-insensitively; return primitives unchanged; guard against cycles). See decision D3.
+      Files: `src/utils/redact.ts`
+      Verify: `npx tsc --noEmit` exits 0.
 
-- [ ] 10. Create `AppLensTrigger` and `AppLensModal`.
-      - `src/components/AppLensTrigger.tsx` — `TouchableOpacity` with `position:'absolute', bottom:32, right:16, zIndex:9999, width:52, height:52, borderRadius:26, backgroundColor:'rgba(13,13,13,0.85)', alignItems:'center', justifyContent:'center'`. Text label `'🔍'`. Calls `useAppLens().setModalVisible(true)` on press. Export `AppLensTrigger`.
-      - `src/components/AppLensModal.tsx` — RN `Modal` with `animationType='slide'`, `transparent={false}`, `visible={modalVisible}`. Outer `View` fills screen with bg `#0d0d0d`. Header `View` row: `Text` "AppLens 🔍" + `TouchableOpacity` "×" (calls `setModalVisible(false)`). Tab bar: horizontal `ScrollView` with `contentContainerStyle={{ flexDirection:'row' }}`. 6 tab buttons for `['Overview','Network','Console','Events','AI','Settings']`. Active tab: bottom border `borderBottomWidth:2, borderBottomColor:'#00ff88'`. Content area: `View` with `flex:1` renders the active tab component determined by `activeTab` state from context. Import all 6 tab components. Export `AppLensModal`.
-      - Files: `src/components/AppLensTrigger.tsx`, `src/components/AppLensModal.tsx`
-      - Verify: `npx tsc --noEmit`
+- [ ] 4. Add error storage to the storage contract and implementation.
+      In `src/storage/AppLensStorage.ts` add (synchronous, matching the existing style — see D2): `addError(error: AppError): void`, `getErrors(query?: { limit?: number }): AppError[]`, `clearErrors(): void`. In `src/storage/MemoryStorage.ts` implement all three: a private `errors: AppError[]` ring buffer sized by a new `maxErrorEntries` constructor arg (default 200), `addError` pushes via `pushRingBuffer` then `notify()`, `getErrors` returns a copy sliced to `query.limit` (most-recent-first when a limit is given), `clearErrors` empties and notifies. Confirm the subscribe/notify mechanism already uses `Set<() => void>` (verified it does — no change needed there).
+      Files: `src/storage/AppLensStorage.ts`, `src/storage/MemoryStorage.ts`
+      Verify: `npx tsc --noEmit` exits 0.
 
-- [ ] 11. Create `OverviewTab` and `SettingsTab`.
-      - `src/tabs/OverviewTab.tsx` — `ScrollView`. Section "Network" shows total count + counts per status class. Section "Console" shows total + count per level. Section "Events" shows total. Section "Config" shows each AppLens.getConfig() boolean as enabled/disabled text. Use `useAppLens()` for data. Export `OverviewTab`.
-      - `src/tabs/SettingsTab.tsx` — `ScrollView`. 7 setting rows, each `View` with `flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingVertical:12, borderBottomWidth:1, borderBottomColor:'#1a1a1a'`. `Text` label + `Switch` with `trackColor={{ false:'#333', true:'#00ff88' }}`. Local state mirrors `AppLens.getConfig()`. On toggle, call a `updateConfig(key, value)` helper that calls `AppLens.initialize({ ...currentConfig, [key]: value })`. Bottom section shows AI provider and model as read-only text. Export `SettingsTab`.
-      - Files: `src/tabs/OverviewTab.tsx`, `src/tabs/SettingsTab.tsx`
-      - Verify: `npx tsc --noEmit`
+- [ ] 5. Create the ErrorInterceptor.
+      Add `src/interceptors/ErrorInterceptor.ts` as a class with `constructor(storage: AppLensStorage)`, `attach()`, `detach()` (mirroring `ConsoleInterceptor`'s attach/detach guard pattern). `attach()` saves the current `ErrorUtils.getGlobalHandler()`, installs its own via `ErrorUtils.setGlobalHandler((error, isFatal) => { store AppError; call savedHandler(error, isFatal) })` so RN's normal error handling is preserved (principle: observe, don't replace). Also capture unhandled promise rejections: feature-detect `global.HermesInternal?.enablePromiseRejectionTracker` and register a tracker; fall back to a no-op when unavailable. Build each `AppError` with a generated id (`${Date.now()}-${Math.random().toString(36).slice(2,9)}`), `message`, `stack`, `timestamp: Date.now()`, `isFatal`. `detach()` restores the saved global handler and disables the rejection tracker. Declare minimal ambient types for `ErrorUtils`/`HermesInternal` locally (no new deps) to satisfy strict mode.
+      Files: `src/interceptors/ErrorInterceptor.ts`
+      Verify: `npx tsc --noEmit` exits 0.
 
-- [ ] 12. Create `NetworkTab` and `NetworkDetailScreen`.
-      - `src/tabs/NetworkTab.tsx` — Local state: `search: string`, `methodFilter: string` ('ALL'|'GET'|'POST'|...), `view: 'list'|'detail'`. When `view==='detail'`, renders `NetworkDetailScreen` (passing `selectedNetworkRequest` from context). When `view==='list'`: header row with request count + `SearchBar` + "Clear" `TouchableOpacity`. Below header: horizontal `ScrollView` of method filter pills. `FlatList` of filtered+searched requests, rendered via `NetworkEntry`. On `NetworkEntry` press: call `setSelectedNetworkRequest(request)`, set `view='detail'`. Filtering: search matches URL (case-insensitive). Method filter matches request.method. Export `NetworkTab`.
-      - `src/tabs/NetworkDetailScreen.tsx` — Props: `request: NetworkRequest, onBack: () => void`. `ScrollView`. Top row: back arrow `'← Back'` `TouchableOpacity` + method badge + url text. Sections rendered as collapsible or just stacked: (1) **Request** — URL, method, timestamp, headers table (key:value rows with redaction display), query params (parsed from URL using URL split on '?'), body via `JSONViewer`. (2) **Response** — status + statusText, duration, response headers table, body via `JSONViewer`. (3) **Error** — shown only if `request.state==='error'`, shows `request.error` message. (4) **Context** — shown only if any context field present: screen, hook, service, event. Each section has a bold title and `#1a1a1a` card background. Export `NetworkDetailScreen`.
-      - Files: `src/tabs/NetworkTab.tsx`, `src/tabs/NetworkDetailScreen.tsx`
-      - Verify: `npx tsc --noEmit`
+- [ ] 6. Switch NetworkInterceptor to the shared redaction utility.
+      In `src/interceptors/NetworkInterceptor.ts` delete the local `redactHeaders` function and import `redactHeaders` from `../utils/redact`. At each call site keep header maps typed as `Record<string, string>` by casting the util result (`redactHeaders(raw, list) as Record<string, string>`), per D3. Behaviour must stay identical (case-insensitive, `'[REDACTED]'`).
+      Files: `src/interceptors/NetworkInterceptor.ts`
+      Verify: `npx tsc --noEmit` exits 0.
 
-- [ ] 13. Create `ConsoleTab` and `EventsTab`.
-      - `src/tabs/ConsoleTab.tsx` — Local state: `search`, `levelFilter: LogLevel | 'ALL'`, `expandedId: string | null`. Header: count + `SearchBar` + level filter pills + Clear button. `FlatList` of filtered logs via `LogEntryRow` component. On row press: toggle `expandedId`. Expanded view shows full message, full args via `JSONViewer`, full stack trace in monospace `Text`. Export `ConsoleTab`.
-      - `src/tabs/EventsTab.tsx` — Local state: `search`, `expandedId: string | null`. Header: count + `SearchBar` + Clear. `FlatList` of events. Each row: event name + timestamp + property count. On press: toggle expanded row that shows `JSONViewer` for event.properties. Export `EventsTab`.
-      - `src/tabs/AITab.tsx` — placeholder: `View` centered with `Text` "AI — implemented in FEAT-003". Export `AITab`.
-      - Files: `src/tabs/ConsoleTab.tsx`, `src/tabs/EventsTab.tsx`, `src/tabs/AITab.tsx`
-      - Verify: `cd /Users/sunilkumar/Desktop/project/AppLens/AppLens && npx tsc --noEmit` — exits 0.
+- [ ] 7. Extend AppLensConfig with the new v0.2.0 fields (all optional / defaulted; keep every existing field).
+      In `src/core/AppLensConfig.ts` add to the interface and `DEFAULT_CONFIG`: `persistLogs?: boolean` (default `false`), `verboseLogging?: boolean` (default `false`), `redaction?: { headers?: string[]; fields?: string[] }` (default `undefined`), `errors: boolean` (default `true`). Do not remove or rename any existing field. See D2/D7 — `redactHeaders` stays as-is for backward compat; `redaction` is the new structured option.
+      Files: `src/core/AppLensConfig.ts`
+      Verify: `npx tsc --noEmit` exits 0.
 
----
+- [ ] 8. Wire version, reset, and error collection into the AppLens singleton.
+      In `src/core/AppLens.ts`: add a private `errorInterceptor: ErrorInterceptor | null = null`; add `getVersion(): string` returning `'0.2.0'`; add `reset(): void` that calls `detachInterceptors()` (extend it to also detach the error interceptor), clears all storage (`clearNetworkRequests/clearLogs/clearEvents/clearErrors`), and sets `this.initialized = false`. In `startInterceptors()` and `attachInterceptors()`, initialize/attach `ErrorInterceptor` when `config.errors !== false` and detach it otherwise, following the existing network/console pattern. Pass `maxErrorEntries` through the `MemoryStorage` constructor call (use a default or a new config field if added — simplest: pass the constructor's new default).
+      Files: `src/core/AppLens.ts`
+      Verify: `npx tsc --noEmit` exits 0.
 
-## FEAT-003 — AI engine: KnowledgeGraph, ContextEngine, providers, full AITab
+- [ ] 9. Create the ErrorsTab UI.
+      Add `src/tabs/ErrorsTab.tsx` following the structure of `EventsTab.tsx` (dark theme `#0d0d0d`/`#1a1a1a`, accent `#00ff88`): header with error count + a Clear button (`AppLens.getStorage().clearErrors()`), a `SearchBar` filtering by `message`, and a `FlatList<AppError>` whose `keyExtractor` returns `item.id`. Each row is a `TouchableOpacity` with `accessibilityRole='button'` showing timestamp, message, and an `isFatal` `Badge` (red when fatal). Tapping expands a detail area showing the full `stack` inside a horizontal `ScrollView`. Add an empty state. Source the error list from the provider (see item 10).
+      Files: `src/tabs/ErrorsTab.tsx`
+      Verify: `npx tsc --noEmit` exits 0.
 
-Depends on FEAT-001 and FEAT-002. Replaces the placeholder AITab.
+- [ ] 10. Expose errors through the React context provider.
+      In `src/core/AppLensProvider.tsx` add `errors: AppError[]` to `AppLensContextValue`, add `const [errors, setErrors] = useState<AppError[]>([])`, update the `sync` callback to also `setErrors([...storage.getErrors()])`, and include `errors` in the context value and its `useMemo` deps. Add `'Errors'` to the `TabName` union.
+      Files: `src/core/AppLensProvider.tsx`
+      Verify: `npx tsc --noEmit` exits 0. (Items 9 and 10 together leave the tab consumable.)
 
-- [ ] 14. Create `AIProvider` interface and factory.
-      - `src/ai/AIProvider.ts` — `export interface AIProvider { chat(messages: AIMessage[], context: ContextChunk[]): Promise<string>; isConfigured(): boolean; }`. `export function createAIProvider(config: AppLensConfig): AIProvider` — returns `new OpenAIProvider(config.aiApiKey!, config.aiModel ?? 'gpt-4o')` if `config.aiProvider === 'openai' && config.aiApiKey`, else `new LocalAIProvider()`.
-      - Files: `src/ai/AIProvider.ts`
-      - Verify: `npx tsc --noEmit`
+- [ ] 11. Register the Errors tab in the modal between Events and AI, and apply accessibility fixes.
+      In `src/components/AppLensModal.tsx`: import `ErrorsTab`, insert `'Errors'` into the `TABS` array between `'Events'` and `'AI'` (making 7 tabs), add the `case 'Errors': return <ErrorsTab />` branch in `TabContent`, and add `accessibilityRole='button'` to each tab `TouchableOpacity`. Confirm the tab bar is already a horizontal `ScrollView` (it is — leave as-is). Add `accessibilityRole='button'` to the close-button `TouchableOpacity` too.
+      Files: `src/components/AppLensModal.tsx`
+      Verify: `npx tsc --noEmit` exits 0.
 
-- [ ] 15. Create `OpenAIProvider` and `LocalAIProvider`.
-      - `src/ai/OpenAIProvider.ts` — `implements AIProvider`. Constructor: `(private apiKey: string, private model: string = 'gpt-4o')`. `isConfigured()` returns `this.apiKey.length > 0`. `chat(messages, context)`: build system prompt: `"You are AppLens AI, an expert debugger for a React Native application.\n\nAvailable context:\n" + context.map(c => \`### \${c.type}\n\${c.content}\`).join('\n\n')`. Create `new OpenAI({ apiKey: this.apiKey })`. Call `openai.chat.completions.create({ model: this.model, messages: [{ role:'system', content: systemPrompt }, ...messages.map(m => ({ role: m.role as 'user'|'assistant'|'system', content: m.content }))] })`. Return `response.choices[0]?.message?.content ?? 'No response'`. Wrap in try/catch, re-throw as `new Error(\`AI request failed: \${err.message}\`)`.
-      - `src/ai/LocalAIProvider.ts` — `implements AIProvider`. `isConfigured()` returns false. `chat()` throws `new Error('No AI provider configured. Pass aiApiKey to AppLens.initialize() to enable AI.')`.
-      - Files: `src/ai/OpenAIProvider.ts`, `src/ai/LocalAIProvider.ts`
-      - Verify: `npx tsc --noEmit`
+- [ ] 12. Add Errors + version rows to the Overview tab.
+      In `src/tabs/OverviewTab.tsx`: read `errors` from `useAppLens()`, compute total and fatal counts, add an "Errors" row/stat showing total count and fatal count, and add an "AppLens" version row showing `AppLens.getVersion()`. Keep the existing dark styling and `Badge` usage.
+      Files: `src/tabs/OverviewTab.tsx`
+      Verify: `npx tsc --noEmit` exits 0.
 
-- [ ] 16. Create `KnowledgeGraph`.
-      - `src/ai/KnowledgeGraph.ts` — `export interface GraphNode { name: string; type: 'screen'|'component'|'hook'|'service'|'store'|'api'; file: string; dependencies: string[]; }`. `export class KnowledgeGraph { private nodes: GraphNode[] = []; addNode(node: GraphNode): void; getNodes(): GraphNode[]; findByName(name: string): GraphNode | undefined; findDependencies(name: string): GraphNode[]; findDependents(name: string): GraphNode[]; static buildFromManifest(nodes: GraphNode[]): KnowledgeGraph { const g = new KnowledgeGraph(); nodes.forEach(n => g.addNode(n)); return g; } toSummary(): string — returns multi-line string listing each node as "TYPE name (file) → deps: dep1, dep2"; toJSON(): GraphNode[]; static fromJSON(data: GraphNode[]): KnowledgeGraph — same as buildFromManifest. }`. Export class.
-      - Files: `src/ai/KnowledgeGraph.ts`
-      - Verify: `npx tsc --noEmit`
+- [ ] 13. Add syntax highlighting + horizontal scroll to JSONViewer.
+      Rewrite `src/components/JSONViewer.tsx` so the pretty-printed JSON is rendered as inline `Text` spans with distinct colors: object keys one color, string values another, numbers/booleans/null a third (dark-theme-appropriate greens/blues on `#111`). Wrap the output in a `ScrollView` that also scrolls horizontally (`horizontal` inner scroll or `nestedScrollEnabled` + a horizontal child) while preserving the existing `maxHeight` prop and vertical scroll. Keep the `JSONViewerProps` API unchanged so all current callers (ConsoleTab, EventsTab, NetworkDetailScreen) keep working.
+      Files: `src/components/JSONViewer.tsx`
+      Verify: `npx tsc --noEmit` exits 0.
 
-- [ ] 17. Create `CodeIndexer` (Node.js utility, not imported by RN bundle).
-      - `src/ai/CodeIndexer.ts` — Add header comment: `// Node.js only — do not import from React Native bundle`. Use `// @ts-ignore` or conditional type guard for Node-only APIs. Exports `async function indexProject(projectRoot: string): Promise<GraphNode[]>`. Implementation: use `require('fs')` and `require('path')` via dynamic require inside the function (so the RN bundler won't fail if it encounters the file — wrap in try/catch). Walk all `.ts`/`.tsx` files recursively. For each file: (a) read source text, (b) extract component names: regex `/(?:function|const)\s+([A-Z][A-Za-z0-9]+)\s*[=\(]/g`, (c) extract hook names: regex `/(?:function|const)\s+(use[A-Za-z0-9]+)\s*[=\(]/g`, (d) extract import paths: regex `/from\s+['"]([^'"]+)['"]/g`, (e) classify node type by file path (screens/ → screen, components/ → component, hooks/ or use*.ts → hook, services/ → service, store/ → store, api → api). Build `GraphNode[]` and return. Note: this runs in Node.js CLI context only. Provide a companion `src/ai/index-project.js` script (plain JS) that calls `indexProject(process.argv[2])` and prints JSON.
-      - Files: `src/ai/CodeIndexer.ts`, `src/ai/index-project.js`
-      - Verify: file type-checks with `npx tsc --noEmit` (use `// @ts-ignore` or `declare const require` as needed to keep strict mode happy)
+- [ ] 14. Enrich the ContextEngine with errors, better keywords, and a summary.
+      In `src/ai/ContextEngine.ts`: add a `buildErrorChunks()` that pulls recent `storage.getErrors()` and formats each as `'[ERROR] ${e.message}\n${e.stack ?? ""}'` (high relevance, e.g. 0.9), and include it in `getRelevantContext()`. Improve `extractKeywords`/matching so keywords match partial substrings (the existing `containsAny` already does substring matching on content; extend keyword matching so a short query token also matches longer words — e.g. include tokens of length > 2 and match as substrings both ways). Add `getContextSummary(question: string): string` that returns a human-readable multi-line summary of what context was selected (counts per chunk type and a short preview). Keep the token budget logic.
+      Files: `src/ai/ContextEngine.ts`
+      Verify: `npx tsc --noEmit` exits 0.
 
-- [ ] 18. Create `ContextEngine`.
-      - `src/ai/ContextEngine.ts` — `export class ContextEngine { constructor(private storage: AppLensStorage, private graph: KnowledgeGraph) {}`. `getRelevantContext(question: string): ContextChunk[]`: (1) `keywords = question.toLowerCase().split(/\W+/).filter(w => w.length > 3 && !STOPWORDS.has(w))` where STOPWORDS = new Set(['what','this','that','with','from','have','does','which','when','where','there','their','your','about','into','than','then']). (2) Network chunks: filter `storage.getNetworkRequests()` where URL or responseBody or error includes any keyword. Sort by timestamp desc. Take top 5. Format each as `"\${r.method} \${r.url} → \${r.status ?? 'pending'} (\${r.duration ?? 0}ms)\nResponse: \${String(r.responseBody ?? '').slice(0, 500)}"`. Assign relevanceScore based on how many keywords matched. (3) Log chunks: filter `storage.getLogs()` where message includes any keyword. Sort by timestamp desc. Take top 10. Format each as `"[\${e.level.toUpperCase()}] \${new Date(e.timestamp).toISOString()}: \${e.message}"`. (4) Event chunks: filter `storage.getEvents()` where name or JSON.stringify(properties) includes any keyword. Take top 5. Format each as `"\${ev.name}: \${JSON.stringify(ev.properties)}"`. (5) Graph chunk: if question includes any of ['component','hook','service','flow','architecture','how','navigate','screen','import'], include graph.toSummary() as one chunk with type 'graph', relevanceScore 0.5. Return all chunks sorted by relevanceScore desc.
-      - Files: `src/ai/ContextEngine.ts`
-      - Verify: `npx tsc --noEmit`
+- [ ] 15. Upgrade the AITab with context summary, confidence badge, and copy.
+      In `src/tabs/AITab.tsx`: for each assistant reply, render a collapsible "Context used" section (above the reply) populated from `contextEngine.getContextSummary(question)` — store the summary alongside the message (e.g. extend the local message state with an optional `contextSummary` field, or keep a parallel map keyed by message id). Parse `Confidence: High|Medium|Low` out of the assistant `content` (case-insensitive regex) and show a colored `Badge` (green/amber/grey); show nothing when absent (see D6). Add a Copy button to each assistant message using React Native's `Clipboard` from `react-native` (no new dep) — if `Clipboard` is unavailable, fall back to a no-op; give the button `accessibilityRole='button'`. Also update the OpenAI system prompt in `src/ai/OpenAIProvider.ts` to ask the model to end with a `Confidence: High|Medium|Low` line.
+      Files: `src/tabs/AITab.tsx`, `src/ai/OpenAIProvider.ts`
+      Verify: `npx tsc --noEmit` exits 0.
 
-- [ ] 19. Replace placeholder `AITab.tsx` with the full chat UI.
-      - `src/tabs/AITab.tsx` — full implementation. State: `messages: AIMessage[]`, `inputText: string`, `isLoading: boolean`, `error: string | null`. On mount: initialize with a system welcome message. `sendMessage()` async handler: (a) append user `AIMessage`, (b) call `ContextEngine.getRelevantContext(inputText)`, (c) call `AIProvider.chat(messages, context)`, (d) append assistant `AIMessage`, (e) catch errors, set `error` state. Instantiate `ContextEngine` and `AIProvider` using `AppLens.getConfig()` and `AppLens.getStorage()`. If `!aiProvider.isConfigured()`: render setup instructions `Text` instead of chat: "To enable AppLens AI, call AppLens.initialize({ aiApiKey: 'sk-...' }) in your app." Chat UI layout: `View flex:1`. `FlatList` (inverted) of messages. Each message: user = right-aligned `View` with `bg:#0d4a2f`, assistant = left-aligned `View` with `bg:#1a1a1a`. Message text + timestamp below. Loading row: `ActivityIndicator` when `isLoading`. Error row: red `Text` when `error`. Bottom input row: `TextInput` (flex 1, bg:#1a1a1a, color:#fff, borderRadius:8, padding:10) + `TouchableOpacity` Send (bg:#00ff88, borderRadius:8). Export `AITab`.
-      - Files: `src/tabs/AITab.tsx`
-      - Verify: `cd /Users/sunilkumar/Desktop/project/AppLens/AppLens && npx tsc --noEmit` — exits 0.
+- [ ] 16. Update public exports.
+      In `src/index.ts` add exports (type-only where appropriate), keeping ALL existing exports: `export type { AppError } from './types/ErrorTypes';` and `export type { AppLensStorage } from './storage/AppLensStorage';`. Confirm the already-present exports cover the required surface: `AppLens`, `AppLensProvider`, the UI component (`AppLensUI` — see D4; the brief says `AppLensDebugUI` but the real export is `AppLensUI`), `AppLensConfig` type, `NetworkRequest`, `LogEntry`, `LogLevel`, `AppEvent`, `AIMessage`. Do not remove anything.
+      Files: `src/index.ts`
+      Verify: `npx tsc --noEmit` exits 0.
 
----
+- [ ] 17. Bump the package version.
+      In `package.json` change `"version": "0.1.0"` to `"0.2.0"`.
+      Files: `package.json`
+      Verify: `npx tsc --noEmit` exits 0 and `grep '"version": "0.2.0"' package.json` matches.
 
-## FEAT-004 — Triveni Point integration + README
+- [ ] 18. Create CHANGELOG.md.
+      Add `CHANGELOG.md` at the library root (Keep a Changelog style) with a `[0.2.0]` section (Added: error collection + ErrorsTab, `AppError` type, shared redaction utils, `AppLens.reset()`, `AppLens.getVersion()`, config fields `errors`/`persistLogs`/`verboseLogging`/`redaction`, JSONViewer syntax highlighting, AI context summary + confidence badge + copy; Changed: NetworkInterceptor uses shared redaction, Overview shows errors + version; Fixed: tsconfig `moduleResolution` so `tsc` runs) and a `[0.1.0]` initial-release section.
+      Files: `CHANGELOG.md`
+      Verify: file exists and is non-empty (`test -s CHANGELOG.md`).
 
-Depends on all prior FEATs. Purely additive changes to the host app.
+- [ ] 19. Full rewrite of README.md.
+      Rewrite `README.md` to describe ONLY what ships (see D7 — remove the fictional Zustand store, `persistLogs`-via-AsyncStorage claims, and the `sensitiveHeaders` field; the real redaction field is `redactHeaders` plus the new `redaction` option). Include: Quick Start (the `AppLens` singleton + the `AppLensUI` component), all 7 tabs (Overview, Network, Console, Events, Errors, AI, Settings), a full `AppLens.initialize()` options table including the new v0.2.0 fields, the `AppLens.trackEvent()` API, `AppLens.reset()`, `AppLens.getVersion()`, an error-collection section, redaction config (`redactHeaders` + `redaction.headers`/`redaction.fields`), AI config, an architecture diagram, and known limitations. Must contain the string `0.2.0`.
+      Files: `README.md`
+      Verify: `grep 0.2.0 README.md` matches.
 
-- [ ] 20. Wire the library into Triveni Point's `package.json` and `tsconfig.json`.
-      - Add to `triveni-point/package.json` dependencies: `"@applens/react-native": "file:../AppLens"`.
-      - Add to `triveni-point/tsconfig.json` paths: `"@applens/react-native": ["../AppLens/src/index.ts"]`. Add `"../AppLens/**/*"` to include array.
-      - Files: `triveni-point/package.json`, `triveni-point/tsconfig.json`
-      - Verify: `cd /Users/sunilkumar/Desktop/project/AppLens/triveni-point && npm install` (or yarn) completes.
+- [ ] 20. Update DELIVERY.md.
+      Update `DELIVERY.md` to v0.2.0: add the new files (`src/types/ErrorTypes.ts`, `src/utils/redact.ts`, `src/interceptors/ErrorInterceptor.ts`, `src/tabs/ErrorsTab.tsx`, `CHANGELOG.md`), update the API reference to the real config fields (replace the invented `sensitiveHeaders`/AsyncStorage rows with `redactHeaders` + `redaction`, add `errors`, document `reset()`/`getVersion()`), note the 7-tab UI, and refresh the known-limitations list (e.g. error capture relies on `ErrorUtils`/Hermes rejection tracker availability).
+      Files: `DELIVERY.md`
+      Verify: `grep 0.2.0 DELIVERY.md` matches.
 
-- [ ] 21. Update `App.tsx` to initialize and render AppLens.
-      - Import at top: `import { AppLens, AppLensDebugUI } from '@applens/react-native';`
-      - Before the `App` component function body (or inside a `useEffect` at the start of App): call `AppLens.initialize({ enabled: __DEV__, network: true, console: true, events: true, ai: true, projectRoot: '/Users/sunilkumar/Desktop/project/AppLens/triveni-point' });` — place this as a module-level side effect just after the import, guarded by `if (__DEV__)`.
-      - Inside the `App` component return, as the last child inside `<SafeAreaProvider>` (after `<RootNavigator />`): add `{__DEV__ && <AppLensDebugUI />}`.
-      - Only additive changes — existing provider stack and RootNavigator are unchanged.
-      - Files: `triveni-point/App.tsx`
-      - Verify: `cd /Users/sunilkumar/Desktop/project/AppLens/triveni-point && npx tsc --noEmit` — exits 0 with no errors in App.tsx or in the imported AppLens library files.
+- [ ] 21. Final verification.
+      Run `cd /Users/sunilkumar/Desktop/project/AppLens/AppLens && npx tsc --noEmit` — must exit 0. Then confirm: `package.json` version is `0.2.0`; `CHANGELOG.md` exists and is non-empty; `README.md` contains `0.2.0`; `src/tabs/ErrorsTab.tsx`, `src/interceptors/ErrorInterceptor.ts`, and `src/utils/redact.ts` all exist.
+      Files: none (verification only)
+      Verify: `npx tsc --noEmit` exits 0 and all listed files/strings are present.
 
-- [ ] 22. Write `README.md` for the AppLens library.
-      - Sections: Overview, Installation (file: path dep + npm install + App.tsx snippet), `AppLens.initialize()` options table (all config keys, types, defaults), `<AppLensDebugUI />` component usage, `AppLens.trackEvent(name, properties)` API, AI configuration (how to set aiApiKey), tabs overview (what each of the 6 tabs shows), KnowledgeGraph / CodeIndexer usage (run `node src/ai/index-project.js /path/to/app` → feed JSON to `AppLens.initialize({ knowledgeGraph: graphData })`), redaction defaults.
-      - Files: `/Users/sunilkumar/Desktop/project/AppLens/AppLens/README.md`
-      - Verify: file exists and is non-empty.
-
----
-
-## Convergence verification (run after all FEATs)
-
-```bash
-# Library type check
-cd /Users/sunilkumar/Desktop/project/AppLens/AppLens && npx tsc --noEmit
-
-# Integration type check
-cd /Users/sunilkumar/Desktop/project/AppLens/triveni-point && npx tsc --noEmit
-```
-
-Both must exit 0.
+## Known gaps / assumptions
+- The brief's `@app-lens/react-native` package name, `AppLensDebugUI` component name, and `Promise`-returning storage signatures all conflict with the shipped code; the plan keeps the existing names/signatures to honor the no-breaking-changes constraint (principles 13 and the task's explicit "No breaking changes to existing public API surface"). If a rename is actually desired, it should be a separate, intentional major-version change.
+- Promise-rejection capture depends on Hermes' `enablePromiseRejectionTracker`; on non-Hermes engines it degrades to a no-op, which is acceptable per Phase 6 ("where possible").

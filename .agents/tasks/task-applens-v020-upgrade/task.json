@@ -1,0 +1,7 @@
+{
+  "task_id": "task-applens-v020-upgrade",
+  "task_description": "Upgrade @applens/react-native from 0.1.0 to 0.2.0: add error collection (AppError type, ErrorInterceptor, storage methods, ErrorsTab, Overview errors+version rows), shared redaction utils, config fields (errors/persistLogs/verboseLogging/redaction), AppLens.reset()/getVersion(), JSONViewer syntax highlighting, ContextEngine error context + summary, AITab context summary/confidence badge/copy, new exports, and a full docs refresh (version bump, CHANGELOG, README rewrite, DELIVERY update). First fix the blocking tsconfig moduleResolution error. Strict TypeScript, no new deps, no breaking changes, dark theme only, no react-navigation.",
+  "status": "completed",
+  "feature_order": ["FEAT-001", "FEAT-002"],
+  "blocked_reason": null
+}
