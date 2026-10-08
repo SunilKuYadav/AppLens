@@ -1,6 +1,7 @@
 import { NetworkRequest } from '../types/NetworkTypes';
 import { LogEntry } from '../types/LogTypes';
 import { AppEvent } from '../types/EventTypes';
+import { AppError } from '../types/ErrorTypes';
 import { AppLensStorage } from './AppLensStorage';
 
 /**
@@ -16,10 +17,12 @@ export class MemoryStorage implements AppLensStorage {
   private readonly networkRequests: NetworkRequest[] = [];
   private readonly logs: LogEntry[] = [];
   private readonly events: AppEvent[] = [];
+  private readonly errors: AppError[] = [];
 
   private readonly maxNetworkEntries: number;
   private readonly maxLogEntries: number;
   private readonly maxEventEntries: number;
+  private readonly maxErrorEntries: number;
 
   private readonly listeners: Set<() => void> = new Set();
 
@@ -27,10 +30,12 @@ export class MemoryStorage implements AppLensStorage {
     maxNetworkEntries: number = 500,
     maxLogEntries: number = 1000,
     maxEventEntries: number = 500,
+    maxErrorEntries: number = 200,
   ) {
     this.maxNetworkEntries = maxNetworkEntries;
     this.maxLogEntries = maxLogEntries;
     this.maxEventEntries = maxEventEntries;
+    this.maxErrorEntries = maxErrorEntries;
   }
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -107,6 +112,25 @@ export class MemoryStorage implements AppLensStorage {
 
   clearEvents(): void {
     this.events.length = 0;
+    this.notify();
+  }
+
+  // ─── Errors ─────────────────────────────────────────────────────────────────
+
+  addError(error: AppError): void {
+    this.pushRingBuffer(this.errors, error, this.maxErrorEntries);
+    this.notify();
+  }
+
+  getErrors(query?: { limit?: number }): AppError[] {
+    if (query?.limit != null) {
+      return this.errors.slice(-query.limit);
+    }
+    return [...this.errors];
+  }
+
+  clearErrors(): void {
+    this.errors.length = 0;
     this.notify();
   }
 

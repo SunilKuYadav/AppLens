@@ -10,6 +10,7 @@ import { AppLens } from './AppLens';
 import { NetworkRequest } from '../types/NetworkTypes';
 import { LogEntry } from '../types/LogTypes';
 import { AppEvent } from '../types/EventTypes';
+import { AppError } from '../types/ErrorTypes';
 
 // ─── Context type ──────────────────────────────────────────────────────────
 
@@ -25,9 +26,10 @@ interface AppLensContextValue {
   networkRequests: NetworkRequest[];
   logs: LogEntry[];
   events: AppEvent[];
+  errors: AppError[];
 }
 
-export type TabName = 'Overview' | 'Network' | 'Console' | 'Events' | 'AI' | 'Settings';
+export type TabName = 'Overview' | 'Network' | 'Console' | 'Events' | 'Errors' | 'AI' | 'Settings';
 
 const AppLensContext = createContext<AppLensContextValue | null>(null);
 
@@ -58,6 +60,7 @@ export function AppLensProvider({ children }: AppLensProviderProps): React.JSX.E
   const [networkRequests, setNetworkRequests] = useState<NetworkRequest[]>([]);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [events, setEvents] = useState<AppEvent[]>([]);
+  const [errors, setErrors] = useState<AppError[]>([]);
 
   // Subscribe to storage changes
   useEffect(() => {
@@ -67,6 +70,7 @@ export function AppLensProvider({ children }: AppLensProviderProps): React.JSX.E
       setNetworkRequests([...storage.getNetworkRequests()]);
       setLogs([...storage.getLogs()]);
       setEvents([...storage.getEvents()]);
+      setErrors([...storage.getErrors()]);
     };
 
     // Initial load
@@ -90,6 +94,7 @@ export function AppLensProvider({ children }: AppLensProviderProps): React.JSX.E
       networkRequests,
       logs,
       events,
+      errors,
     }),
     [
       modalVisible,
@@ -99,6 +104,7 @@ export function AppLensProvider({ children }: AppLensProviderProps): React.JSX.E
       networkRequests,
       logs,
       events,
+      errors,
     ],
   );
 

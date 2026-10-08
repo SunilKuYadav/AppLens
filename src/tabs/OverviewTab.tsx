@@ -33,6 +33,7 @@ export function OverviewTab(): React.JSX.Element {
     networkRequests,
     logs,
     events,
+    errors,
     setSelectedNetworkRequest,
     setSelectedLogEntry,
     setActiveTab,
@@ -50,6 +51,8 @@ export function OverviewTab(): React.JSX.Element {
   }, [logs]);
 
   const errorCount = networkRequests.filter(r => r.state === 'error' || (r.status !== undefined && r.status >= 500)).length;
+
+  const fatalErrorCount = errors.filter(e => e.isFatal).length;
 
   const lastNetworkRequests = networkRequests.slice(-3).reverse();
   const lastLogs = logs.slice(-3).reverse();
@@ -77,6 +80,19 @@ export function OverviewTab(): React.JSX.Element {
         ))}
       </View>
 
+      {/* Errors */}
+      <SectionHeader title="Errors" />
+      <View style={styles.configCard}>
+        <View style={styles.configRow}>
+          <Text style={styles.configKey}>Total</Text>
+          <Badge label={String(errors.length)} color={errors.length > 0 ? '#dc2626' : '#555'} />
+        </View>
+        <View style={styles.configRow}>
+          <Text style={styles.configKey}>Fatal</Text>
+          <Badge label={String(fatalErrorCount)} color={fatalErrorCount > 0 ? '#dc2626' : '#555'} />
+        </View>
+      </View>
+
       {/* Config */}
       <SectionHeader title="Configuration" />
       <View style={styles.configCard}>
@@ -102,6 +118,10 @@ export function OverviewTab(): React.JSX.Element {
             <Text style={styles.configVal}>{config.aiModel}</Text>
           </View>
         )}
+        <View style={styles.configRow}>
+          <Text style={styles.configKey}>AppLens</Text>
+          <Text style={styles.configVal}>v{AppLens.getVersion()}</Text>
+        </View>
       </View>
 
       {/* Recent network */}

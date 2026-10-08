@@ -14,6 +14,8 @@ export interface AppLensConfig {
   console: boolean;
   /** Enable application event tracking */
   events: boolean;
+  /** Enable capture of uncaught errors and unhandled promise rejections */
+  errors: boolean;
   /** Enable the AI assistant feature */
   ai: boolean;
   /** Which AI backend to use */
@@ -34,6 +36,17 @@ export interface AppLensConfig {
   maxLogEntries: number;
   /** Maximum number of event entries kept in memory (ring buffer) */
   maxEventEntries: number;
+  /** Reserved: persist captured logs across reloads (not yet implemented) */
+  persistLogs?: boolean;
+  /** Enable AppLens's own verbose diagnostic logging */
+  verboseLogging?: boolean;
+  /** Field/header names to redact from captured data */
+  redaction?: {
+    /** Header names to redact (case-insensitive) */
+    headers?: string[];
+    /** Object field names to redact (case-insensitive) */
+    fields?: string[];
+  };
 }
 
 /**
@@ -45,6 +58,7 @@ export const DEFAULT_CONFIG: AppLensConfig = {
   network: true,
   console: true,
   events: true,
+  errors: true,
   ai: true,
   aiProvider: 'openai',
   aiApiKey: undefined,
@@ -55,4 +69,7 @@ export const DEFAULT_CONFIG: AppLensConfig = {
   maxNetworkEntries: 500,
   maxLogEntries: 1000,
   maxEventEntries: 500,
+  persistLogs: false,
+  verboseLogging: false,
+  redaction: undefined,
 };

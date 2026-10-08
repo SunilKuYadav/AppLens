@@ -1,6 +1,7 @@
 import { ContextChunk } from '../types/AITypes';
 import { AppLensStorage } from '../storage/AppLensStorage';
 import { KnowledgeGraph } from './KnowledgeGraph';
+import { AppError } from '../types/ErrorTypes';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -48,7 +49,16 @@ function extractKeywords(question: string): string[] {
 
 function containsAny(text: string, keywords: string[]): boolean {
   const lower = text.toLowerCase();
-  return keywords.some((kw) => lower.includes(kw));
+  // Match a keyword against the text's words in both directions so partial
+  // substrings count (e.g. query "checkout" matches "checkouts", and query
+  // "authentication" matches a shorter content word "auth").
+  const words = lower.split(/\W+/).filter(Boolean);
+  return keywords.some((kw) => {
+    if (lower.includes(kw)) {
+      return true;
+    }
+    return words.some((word) => word.includes(kw) || kw.includes(word));
+  });
 }
 
 function truncate(text: string, maxChars: number): string {
@@ -103,7 +113,10 @@ export class ContextEngine {
     // 3. Events
     chunks.push(...this.buildEventChunks(keywords));
 
-    // 4. Knowledge graph
+    // 4. Errors (recent first, high relevance)
+    chunks.push(...this.buildErrorChunks());
+
+    // 5. Knowledge graph
     const graphChunk = this.buildGraphChunk(question, keywords);
     if (graphChunk) {
       chunks.push(graphChunk);
@@ -114,6 +127,44 @@ export class ContextEngine {
 
     // Enforce total token budget
     return this.applyTokenBudget(chunks);
+  }
+
+  /**
+   * Return a human-readable, multi-line summary of the context that
+   * getRelevantContext() would select for a question: counts per chunk type
+   * plus a short preview of the highest-ranked chunk of each type.
+   */
+  getContextSummary(question: string): string {
+    const chunks = this.getRelevantContext(question);
+
+    if (chunks.length === 0) {
+      return 'No relevant context was selected for this question.';
+    }
+
+    const order: ContextChunk['type'][] = ['network', 'log', 'event', 'graph', 'code'];
+    const labels: Record<ContextChunk['type'], string> = {
+      network: 'Network',
+      log: 'Logs/Errors',
+      event: 'Events',
+      graph: 'Code graph',
+      code: 'Code',
+    };
+
+    const lines: string[] = [
+      `Context used (${chunks.length} chunk${chunks.length === 1 ? '' : 's'}):`,
+    ];
+
+    for (const type of order) {
+      const ofType = chunks.filter((c) => c.type === type);
+      if (ofType.length === 0) {
+        continue;
+      }
+      const previewSource = ofType[0].content.replace(/\s+/g, ' ').trim();
+      const preview = truncate(previewSource, 100);
+      lines.push(`• ${labels[type]}: ${ofType.length} — ${preview}`);
+    }
+
+    return lines.join('\n');
   }
 
   // ─── Private builders ───────────────────────────────────────────────────
@@ -224,6 +275,19 @@ export class ContextEngine {
       const content = `Event: ${evt.name}  Time: ${ts}\nProperties: ${propsStr}`;
 
       return { type: 'event' as const, content, relevanceScore: 0.65 };
+    });
+  }
+
+  private buildErrorChunks(): ContextChunk[] {
+    const recentErrors: AppError[] = this.storage.getErrors().slice().reverse();
+    const top = recentErrors.slice(0, 5);
+
+    return top.map((e) => {
+      const content = truncate(
+        `[ERROR] ${e.message}\n${e.stack ?? ''}`,
+        MAX_CHUNK_BODY_CHARS,
+      );
+      return { type: 'log' as const, content, relevanceScore: 0.9 };
     });
   }
 

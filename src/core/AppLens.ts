@@ -3,6 +3,7 @@ import { AppLensStorage } from '../storage/AppLensStorage';
 import { MemoryStorage } from '../storage/MemoryStorage';
 import { NetworkInterceptor } from '../interceptors/NetworkInterceptor';
 import { ConsoleInterceptor } from '../interceptors/ConsoleInterceptor';
+import { ErrorInterceptor } from '../interceptors/ErrorInterceptor';
 import { AppEvent } from '../types/EventTypes';
 import { KnowledgeGraph } from '../ai/KnowledgeGraph';
 import { GraphNode } from '../ai/KnowledgeGraph';
@@ -33,6 +34,7 @@ class AppLensClass {
   );
   private networkInterceptor: NetworkInterceptor | null = null;
   private consoleInterceptor: ConsoleInterceptor | null = null;
+  private errorInterceptor: ErrorInterceptor | null = null;
   private initialized: boolean = false;
   private graph: KnowledgeGraph = new KnowledgeGraph();
 
@@ -84,6 +86,11 @@ class AppLensClass {
       }
     }
     // Second+ calls: config is updated but interceptors are left as-is.
+  }
+
+  /** Return the AppLens library version. */
+  getVersion(): string {
+    return '0.2.0';
   }
 
   /** Return the active configuration (read-only copy). */
@@ -169,6 +176,16 @@ class AppLensClass {
     } else {
       this.consoleInterceptor?.detach();
     }
+
+    // Errors
+    if (this.config.errors !== false) {
+      if (!this.errorInterceptor) {
+        this.errorInterceptor = new ErrorInterceptor(this.storage);
+      }
+      this.errorInterceptor.attach();
+    } else {
+      this.errorInterceptor?.detach();
+    }
   }
 
   /**
@@ -180,6 +197,20 @@ class AppLensClass {
   detachInterceptors(): void {
     this.networkInterceptor?.detach();
     this.consoleInterceptor?.detach();
+    this.errorInterceptor?.detach();
+  }
+
+  /**
+   * Detach all interceptors, clear every data store, and mark AppLens as
+   * uninitialized. A subsequent initialize() call starts fresh.
+   */
+  reset(): void {
+    this.detachInterceptors();
+    this.storage.clearNetworkRequests();
+    this.storage.clearLogs();
+    this.storage.clearEvents();
+    this.storage.clearErrors();
+    this.initialized = false;
   }
 
   // ─── Internal helpers ─────────────────────────────────────────────────────
@@ -196,6 +227,11 @@ class AppLensClass {
     if (this.config.console) {
       this.consoleInterceptor = new ConsoleInterceptor(this.storage);
       this.consoleInterceptor.attach();
+    }
+
+    if (this.config.errors !== false) {
+      this.errorInterceptor = new ErrorInterceptor(this.storage);
+      this.errorInterceptor.attach();
     }
   }
 }

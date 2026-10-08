@@ -10,7 +10,11 @@ export type { AppLensConfig } from './core/AppLensConfig';
 export type { NetworkRequest } from './types/NetworkTypes';
 export type { LogEntry, LogLevel } from './types/LogTypes';
 export type { AppEvent } from './types/EventTypes';
+export type { AppError } from './types/ErrorTypes';
 export type { AIMessage, AIConversation, ContextChunk } from './types/AITypes';
+
+// ─── Storage ──────────────────────────────────────────────────────────────
+export type { AppLensStorage } from './storage/AppLensStorage';
 
 // ─── Components ───────────────────────────────────────────────────────────
 export { AppLensModal } from './components/AppLensModal';

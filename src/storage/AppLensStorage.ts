@@ -1,6 +1,7 @@
 import { NetworkRequest } from '../types/NetworkTypes';
 import { LogEntry } from '../types/LogTypes';
 import { AppEvent } from '../types/EventTypes';
+import { AppError } from '../types/ErrorTypes';
 
 /**
  * Defines the contract for AppLens in-memory data storage.
@@ -42,6 +43,17 @@ export interface AppLensStorage {
 
   /** Remove all stored events. */
   clearEvents(): void;
+
+  // ─── Errors ───────────────────────────────────────────────────────────────
+
+  /** Add a new captured error. */
+  addError(error: AppError): void;
+
+  /** Return stored errors, oldest first. When `query.limit` is set, return the most-recent `limit`. */
+  getErrors(query?: { limit?: number }): AppError[];
+
+  /** Remove all stored errors. */
+  clearErrors(): void;
 
   // ─── Subscriptions ────────────────────────────────────────────────────────
 

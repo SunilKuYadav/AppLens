@@ -1,6 +1,7 @@
 import { NetworkRequest } from '../types/NetworkTypes';
 import { AppLensStorage } from '../storage/AppLensStorage';
 import { AppLensConfig } from '../core/AppLensConfig';
+import { redactHeaders } from '../utils/redact';
 
 /** Maximum body size captured per request/response (50 KB). */
 const MAX_BODY_BYTES = 50 * 1024;
@@ -16,23 +17,6 @@ function truncateBody(body: string): string {
     return body.slice(0, MAX_BODY_BYTES) + '…[truncated]';
   }
   return body;
-}
-
-/**
- * Redact sensitive header values in place (case-insensitive key matching).
- * Returns a new object — never mutates the original.
- */
-function redactHeaders(
-  headers: Record<string, string>,
-  redactList: string[],
-): Record<string, string> {
-  const result: Record<string, string> = {};
-  for (const [key, value] of Object.entries(headers)) {
-    result[key] = redactList.includes(key.toLowerCase())
-      ? '[REDACTED]'
-      : value;
-  }
-  return result;
 }
 
 /** Parse a raw header string (from XHR.getAllResponseHeaders) into a map. */
@@ -215,7 +199,7 @@ export class NetworkInterceptor {
       const requestHeaders = redactHeaders(
         rawRequestHeaders,
         interceptor.config.redactHeaders,
-      );
+      ) as Record<string, string>;
 
       const requestBody =
         body != null ? truncateBody(String(body)) : undefined;
@@ -243,7 +227,7 @@ export class NetworkInterceptor {
         const responseHeaders = redactHeaders(
           rawResponseHeaders,
           interceptor.config.redactHeaders,
-        );
+        ) as Record<string, string>;
 
         // responseText is only accessible when responseType is '' or 'text'.
         // Binary/blob responses (e.g. images) use a different responseType —
@@ -362,7 +346,7 @@ export class NetworkInterceptor {
       const requestHeaders = redactHeaders(
         rawRequestHeaders,
         interceptor.config.redactHeaders,
-      );
+      ) as Record<string, string>;
 
       // Capture request body
       let requestBody: string | undefined;
@@ -398,7 +382,7 @@ export class NetworkInterceptor {
         const responseHeaders = redactHeaders(
           rawResponseHeaders,
           interceptor.config.redactHeaders,
-        );
+        ) as Record<string, string>;
 
         let responseBody: string | undefined;
         try {

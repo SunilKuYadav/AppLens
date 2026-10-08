@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Clipboard,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -8,6 +9,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import Markdown from 'react-native-markdown-display';
@@ -15,6 +17,37 @@ import { AppLens } from '../core/AppLens';
 import { AIMessage } from '../types/AITypes';
 import { AIProvider, createAIProvider } from '../ai/AIProvider';
 import { ContextEngine } from '../ai/ContextEngine';
+import { Badge } from '../components/Badge';
+
+// ─── Confidence parsing ────────────────────────────────────────────────────
+
+type ConfidenceLevel = 'High' | 'Medium' | 'Low';
+
+const CONFIDENCE_COLORS: Record<ConfidenceLevel, string> = {
+  High: '#16a34a',
+  Medium: '#d97706',
+  Low: '#555',
+};
+
+function parseConfidence(content: string): ConfidenceLevel | null {
+  const match = /Confidence:\s*(High|Medium|Low)/i.exec(content);
+  if (!match) {
+    return null;
+  }
+  const level = match[1].toLowerCase();
+  if (level === 'high') return 'High';
+  if (level === 'medium') return 'Medium';
+  return 'Low';
+}
+
+/** Copy text to the clipboard with a safe no-op fallback. */
+function copyToClipboard(text: string): void {
+  try {
+    Clipboard.setString(text);
+  } catch {
+    // no-op: Clipboard unavailable in this environment
+  }
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -33,11 +66,13 @@ function formatTimestamp(ms: number): string {
 
 interface BubbleProps {
   message: AIMessage;
+  contextSummary?: string;
 }
 
-function MessageBubble({ message }: BubbleProps): React.JSX.Element {
+function MessageBubble({ message, contextSummary }: BubbleProps): React.JSX.Element {
   const isUser = message.role === 'user';
   const isSystem = message.role === 'system';
+  const [contextExpanded, setContextExpanded] = useState(false);
 
   if (isSystem) {
     return (
@@ -50,6 +85,8 @@ function MessageBubble({ message }: BubbleProps): React.JSX.Element {
     );
   }
 
+  const confidence = !isUser ? parseConfidence(message.content) : null;
+
   return (
     <View style={[styles.bubbleRow, isUser ? styles.userRow : styles.assistantRow]}>
       <View
@@ -58,6 +95,24 @@ function MessageBubble({ message }: BubbleProps): React.JSX.Element {
           isUser ? styles.userBubble : styles.assistantBubble,
         ]}
       >
+        {/* Context-used section (assistant only) */}
+        {!isUser && contextSummary && (
+          <View style={styles.contextSection}>
+            <TouchableOpacity
+              onPress={() => setContextExpanded((v) => !v)}
+              accessibilityRole="button"
+              activeOpacity={0.7}
+            >
+              <Text style={styles.contextToggle}>
+                {contextExpanded ? '▾ Context used' : '▸ Context used'}
+              </Text>
+            </TouchableOpacity>
+            {contextExpanded && (
+              <Text style={styles.contextBody}>{contextSummary}</Text>
+            )}
+          </View>
+        )}
+
         {isUser ? (
           <Text style={[styles.bubbleText, styles.userText]}>
             {message.content}
@@ -65,14 +120,31 @@ function MessageBubble({ message }: BubbleProps): React.JSX.Element {
         ) : (
           <Markdown style={markdownStyles}>{message.content}</Markdown>
         )}
-        <Text
-          style={[
-            styles.bubbleTime,
-            isUser ? styles.userTime : styles.assistantTime,
-          ]}
-        >
-          {formatTimestamp(message.timestamp)}
-        </Text>
+
+        {/* Footer: confidence badge + copy + time */}
+        <View style={styles.bubbleFooter}>
+          {confidence && (
+            <Badge label={`Confidence: ${confidence}`} color={CONFIDENCE_COLORS[confidence]} />
+          )}
+          {!isUser && (
+            <TouchableOpacity
+              onPress={() => copyToClipboard(message.content)}
+              accessibilityRole="button"
+              accessibilityLabel="Copy message"
+              activeOpacity={0.7}
+            >
+              <Text style={styles.copyText}>Copy</Text>
+            </TouchableOpacity>
+          )}
+          <Text
+            style={[
+              styles.bubbleTime,
+              isUser ? styles.userTime : styles.assistantTime,
+            ]}
+          >
+            {formatTimestamp(message.timestamp)}
+          </Text>
+        </View>
       </View>
     </View>
   );
@@ -142,6 +214,7 @@ export function AITab(): React.JSX.Element {
   const contextEngine = contextEngineRef.current;
 
   const [messages, setMessages] = useState<AIMessage[]>([WELCOME_MESSAGE]);
+  const [contextSummaries, setContextSummaries] = useState<Record<string, string>>({});
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -176,6 +249,7 @@ export function AITab(): React.JSX.Element {
     try {
       // Retrieve relevant context chunks for this question
       const contextChunks = contextEngine.getRelevantContext(text);
+      const summary = contextEngine.getContextSummary(text);
 
       // Get the full conversation (excluding the system welcome)
       const conversationHistory = [...messages, userMessage].filter(
@@ -191,6 +265,7 @@ export function AITab(): React.JSX.Element {
         timestamp: Date.now(),
       };
 
+      setContextSummaries((prev) => ({ ...prev, [assistantMessage.id]: summary }));
       setMessages((prev) => [...prev, assistantMessage]);
     } catch (err: unknown) {
       const errorText =
@@ -231,7 +306,9 @@ export function AITab(): React.JSX.Element {
         ref={flatListRef}
         data={messages}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <MessageBubble message={item} />}
+        renderItem={({ item }) => (
+          <MessageBubble message={item} contextSummary={contextSummaries[item.id]} />
+        )}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
         onContentSizeChange={() =>
@@ -423,6 +500,40 @@ const styles = StyleSheet.create({
   },
   assistantTime: {
     color: '#555',
+  },
+
+  // ── Context used ──
+  contextSection: {
+    marginBottom: 8,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#2a2a2a',
+  },
+  contextToggle: {
+    color: '#00ff88',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  contextBody: {
+    color: '#888',
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 6,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+
+  // ── Footer ──
+  bubbleFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 6,
+    flexWrap: 'wrap',
+  },
+  copyText: {
+    color: '#00ff88',
+    fontSize: 11,
+    fontWeight: '600',
   },
 
   // ── Loading ──

@@ -89,6 +89,10 @@ export class OpenAIProvider implements AIProvider {
       '',
       'Format your responses with clear sections. Use plain text — avoid markdown that would not render',
       'well in a mobile developer console.',
+      '',
+      'IMPORTANT: End every answer with a final line formatted EXACTLY as one of:',
+      '"Confidence: High", "Confidence: Medium", or "Confidence: Low"',
+      '— reflecting how well the provided context supports your answer.',
     ].join('\n');
 
     if (chunks.length === 0) {

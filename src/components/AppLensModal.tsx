@@ -12,10 +12,11 @@ import { OverviewTab } from '../tabs/OverviewTab';
 import { NetworkTab } from '../tabs/NetworkTab';
 import { ConsoleTab } from '../tabs/ConsoleTab';
 import { EventsTab } from '../tabs/EventsTab';
+import { ErrorsTab } from '../tabs/ErrorsTab';
 import { AITab } from '../tabs/AITab';
 import { SettingsTab } from '../tabs/SettingsTab';
 
-const TABS: TabName[] = ['Overview', 'Network', 'Console', 'Events', 'AI', 'Settings'];
+const TABS: TabName[] = ['Overview', 'Network', 'Console', 'Events', 'Errors', 'AI', 'Settings'];
 
 function TabContent({ tab }: { tab: TabName }): React.JSX.Element {
   switch (tab) {
@@ -23,6 +24,7 @@ function TabContent({ tab }: { tab: TabName }): React.JSX.Element {
     case 'Network':   return <NetworkTab />;
     case 'Console':   return <ConsoleTab />;
     case 'Events':    return <EventsTab />;
+    case 'Errors':    return <ErrorsTab />;
     case 'AI':        return <AITab />;
     case 'Settings':  return <SettingsTab />;
     default:          return <OverviewTab />;
@@ -49,6 +51,7 @@ export function AppLensModal(): React.JSX.Element {
             style={styles.closeButton}
             onPress={() => setModalVisible(false)}
             hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+            accessibilityRole="button"
           >
             <Text style={styles.closeText}>×</Text>
           </TouchableOpacity>
@@ -67,6 +70,7 @@ export function AppLensModal(): React.JSX.Element {
                 style={styles.tabItem}
                 onPress={() => setActiveTab(tab)}
                 activeOpacity={0.7}
+                accessibilityRole="button"
               >
                 <Text
                   style={[
