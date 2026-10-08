@@ -1,0 +1,27 @@
+{
+  "id": "FEAT-002",
+  "type": "docs",
+  "description": "Documentation and version metadata for v0.2.0. Depends on FEAT-001 because the docs must describe the final, actually-shipped API surface. Bumps package.json to 0.2.0, creates CHANGELOG.md, fully rewrites README.md (which currently documents non-existent features), and updates DELIVERY.md to match the real code.",
+  "status": "completed",
+  "steps": [
+    "In package.json change \"version\": \"0.1.0\" to \"0.2.0\". Do not touch dependencies.",
+    "Create CHANGELOG.md at the library root in Keep a Changelog style. [0.2.0] Added: error collection (AppError type, ErrorInterceptor, storage addError/getErrors/clearErrors, ErrorsTab, Overview errors + version rows), shared redaction utils (redactHeaders/redactFields), AppLens.reset(), AppLens.getVersion(), config fields errors/persistLogs/verboseLogging/redaction, JSONViewer syntax highlighting + horizontal scroll, AI context summary + confidence badge + copy, new exports AppError and AppLensStorage. Changed: NetworkInterceptor now uses the shared redaction utility; Overview shows errors + version; 7 tabs. Fixed: tsconfig moduleResolution corrected so `tsc --noEmit` runs. Also include a [0.1.0] initial release section.",
+    "Full rewrite of README.md describing ONLY what actually ships (remove the fictional Zustand store/AppLensStore.ts, the persistLogs-via-AsyncStorage claims, and the `sensitiveHeaders` config field — the real redaction field is `redactHeaders`, plus the new structured `redaction` option). Include: Quick Start using the AppLens singleton + the <AppLensUI /> component (NOT AppLensDebugUI); all 7 tabs (Overview, Network, Console, Events, Errors, AI, Settings); a full AppLens.initialize() options table including the new v0.2.0 fields; AppLens.trackEvent() API; AppLens.reset() API; AppLens.getVersion() API; an error-collection section; redaction config (redactHeaders + redaction.headers / redaction.fields); AI config (aiProvider/aiApiKey/aiModel/aiBaseURL); an architecture diagram; and a known-limitations section. The file must contain the string 0.2.0.",
+    "Update DELIVERY.md to v0.2.0: add the new files (src/types/ErrorTypes.ts, src/utils/redact.ts, src/interceptors/ErrorInterceptor.ts, src/tabs/ErrorsTab.tsx, CHANGELOG.md); correct the API reference to the real config fields (replace the invented sensitiveHeaders/AsyncStorage rows with redactHeaders + redaction, add errors, document reset()/getVersion()); note the 7-tab UI; and refresh known limitations (e.g. promise-rejection capture depends on the Hermes rejection tracker)."
+  ],
+  "acceptance_criteria": [
+    "package.json version is exactly 0.2.0.",
+    "CHANGELOG.md exists, is non-empty, and has [0.2.0] and [0.1.0] sections.",
+    "README.md contains the string 0.2.0, documents all 7 tabs, the new config fields, and the reset()/getVersion()/trackEvent() APIs, and no longer references a Zustand store, AsyncStorage persistLogs, or a `sensitiveHeaders` field.",
+    "DELIVERY.md lists the four new source files + CHANGELOG.md and contains 0.2.0.",
+    "`npx tsc --noEmit` still exits 0 (docs changes do not affect types)."
+  ],
+  "verification": [
+    "grep -q '\"version\": \"0.2.0\"' package.json",
+    "test -s CHANGELOG.md",
+    "grep -q 0.2.0 README.md && grep -q 0.2.0 DELIVERY.md",
+    "cd /Users/sunilkumar/Desktop/project/AppLens/AppLens && npx tsc --noEmit  # must exit 0"
+  ],
+  "blocked_reason": null,
+  "findings": "FEAT-002 complete. package.json already read as version 0.2.0 (FEAT-001 bumped it); left as-is. Created CHANGELOG.md (Keep a Changelog) with [0.2.0] Added/Changed/Fixed sections and a [0.1.0] initial-release section. Fully rewrote README.md and DELIVERY.md to describe only the shipped API.\n\nCorrected stale/fictional content: removed the Zustand store / AppLensStore.ts, AsyncStorage persistLogs claims, and the `sensitiveHeaders` field. Documented the real redaction surface: `redactHeaders: string[]` plus the structured `redaction?: { headers?; fields? }` option, both replacing matched values with '[REDACTED]'. UI component documented as <AppLensUI /> (NOT AppLensDebugUI). persistLogs documented as a reserved/not-yet-implemented flag (matches config comment and FEAT-001 findings).\n\nDocumented all 7 tabs (Overview, Network, Console, Events, Errors, AI, Settings) and new APIs: AppLens.trackEvent, AppLens.reset, AppLens.getVersion (plus getConfig/getStorage). New config fields documented with real defaults from AppLensConfig.ts: errors(true), persistLogs(false), verboseLogging(false), redaction(undefined), aiProvider('openai'), aiBaseURL, maxNetworkEntries(500), maxLogEntries(1000), maxEventEntries(500). Error-collection section covers AppError shape, ErrorUtils handler preservation, and Hermes rejection-tracker dependency. AI config section covers aiProvider/aiApiKey/aiModel/aiBaseURL and the Confidence line. DELIVERY.md lists the four new source files + CHANGELOG.md.\n\nVerification: `npx tsc --noEmit` exits 0; package.json version is 0.2.0; CHANGELOG.md non-empty with [0.2.0] and [0.1.0]; README.md and DELIVERY.md both contain 0.2.0; no remaining zustand/AsyncStorage/sensitiveHeaders references in README. No shipped behavior changed. Committed on branch dev."
+}
