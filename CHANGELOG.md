@@ -5,6 +5,21 @@ All notable changes to `@applens/react-native` are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **In-app Graph tab.** A new **Graph** tab in the debug modal previews the
+  loaded code knowledge graph — screens, components, hooks, services, stores,
+  and APIs grouped by type with their dependencies — and shows an empty-state
+  with the generate command and load snippet when no graph is loaded.
+- **`applens-index` bin command.** `package.json` now maps a bin so consumers
+  can run `npx applens-index ./src > app-graph.json` (the AST indexer) after a
+  git-tag install, instead of calling the explicit `dist/ai/` path.
+- **AI-tab empty-graph hint.** When the AI provider is configured but no code
+  graph is loaded, the AI tab shows a compact hint pointing to
+  `npx applens-index ./src > app-graph.json` and `loadKnowledgeGraph`.
+
 ## [0.3.1]
 
 ### Added

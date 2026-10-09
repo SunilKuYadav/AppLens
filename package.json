@@ -4,6 +4,9 @@
   "description": "Developer-focused debugging and observability library for React Native applications",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "bin": {
+    "applens-index": "dist/ai/index-project-ast.js"
+  },
   "files": [
     "dist",
     "README.md",

@@ -47,7 +47,8 @@ file and its single responsibility.
 | `src/ai/CodeIndexer.ts` | **Node.js-only** regex scanner that parses `.ts/.tsx` files into a `GraphNode[]` manifest for the KnowledgeGraph. Never bundled into the RN app. |
 | `src/ai/index-project.js` | CLI wrapper around `CodeIndexer.indexProject()` — run it to produce `knowledge-graph.json`. |
 | `src/ai/AstCodeIndexer.ts` | **Node.js-only** AST indexer (TypeScript compiler API). More accurate than the regex scanner — ignores doc comments, names real exports. Never bundled into the RN app. |
-| `src/ai/index-project-ast.js` | CLI wrapper around `AstCodeIndexer` — the recommended way to produce `knowledge-graph.json`. |
+| `src/ai/index-project-ast.js` | CLI wrapper around `AstCodeIndexer` — the recommended way to produce the graph manifest. Compiled to `dist/ai/index-project-ast.js` and exposed as the `applens-index` bin, so consumers run `npx applens-index ./src > app-graph.json`. |
+| `src/tabs/GraphTab.tsx` | The in-app **Graph** tab. Previews the loaded knowledge graph grouped by node type; shows an empty-state with the generate command + load snippet when no graph is loaded. |
 | `src/types/AITypes.ts` | Types: `AIProviderType`, `AIMessage`, `AIConversation`, `ContextChunk`. |
 | `src/core/AppLensConfig.ts` | Config shape + defaults, including all `ai*` fields. |
 | `src/core/AppLens.ts` | Singleton. Holds config + storage + knowledge graph; exposes `loadKnowledgeGraph()` / `getKnowledgeGraph()`. |
@@ -203,13 +204,31 @@ from a manifest produced offline.
 
 ### Build the manifest (offline, Node.js)
 
+After a git-tag install the package exposes an `applens-index` bin, so the
+primary way to produce the manifest is `npx`. Point it at **your own app's**
+source (`./src`), not at AppLens:
+
 ```bash
-# AST variant (recommended)
-node src/ai/index-project-ast.js ./src > knowledge-graph.json
+# primary command (AST indexer)
+npx applens-index ./src > app-graph.json
+```
+
+The compiled CLIs are also runnable by explicit path (useful for the regex
+variant, or when working inside this repo on raw sources):
+
+```bash
+# AST variant, explicit path (same as the bin)
+node node_modules/@applens/react-native/dist/ai/index-project-ast.js ./src > app-graph.json
 
 # regex variant
-node src/ai/index-project.js ./src > knowledge-graph.json
+node node_modules/@applens/react-native/dist/ai/index-project.js ./src > app-graph.json
+
+# inside this repo, against the raw TS sources
+node src/ai/index-project-ast.js ./src > app-graph.json
 ```
+
+The in-app **Graph** tab (`src/tabs/GraphTab.tsx`) previews the loaded graph,
+and the **AI** tab shows an empty-graph hint when nothing is loaded.
 
 `CodeIndexer.indexProject()` (regex) walks `.ts/.tsx` files, classifies each
 (`classifyFile`), and extracts component/hook/service/class names and relative
@@ -221,8 +240,8 @@ names real exports instead of filename-basename fallbacks.
 ### Load it into the app at startup
 
 ```ts
-import manifest from './knowledge-graph.json';
-AppLens.loadKnowledgeGraph(manifest);
+import graph from './app-graph.json';
+AppLens.loadKnowledgeGraph(graph);
 ```
 
 `AppLens.loadKnowledgeGraph()` calls `KnowledgeGraph.buildFromManifest()`, and

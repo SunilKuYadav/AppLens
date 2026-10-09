@@ -136,26 +136,37 @@ Without the graph the AI knows your *runtime* but not your *structure*. Build a
 manifest offline and load it at startup so the AI can reason about
 components/hooks/services and their dependencies.
 
-After a git-tag install with the build step, the compiled CLIs live under
-`dist/ai/`. Prefer the AST variant (`index-project-ast.js`) — it uses the
-TypeScript compiler API and is more accurate than the regex `index-project.js`.
+After a git-tag install with the build step, the package exposes an
+`applens-index` bin, so the simplest way to generate the manifest is `npx`.
+Point it at **your own app's** source (`./src`), not at AppLens. It uses the
+AST indexer (TypeScript compiler API), which is more accurate than the regex
+variant.
 
 ```bash
-# offline, in CI or locally — AST variant (recommended)
-node node_modules/@applens/react-native/dist/ai/index-project-ast.js ./src > applens-graph.json
+# offline, in CI or locally — primary command
+npx applens-index ./src > app-graph.json
+```
+
+The compiled CLIs also live under `dist/ai/`, so you can call them by explicit
+path if you prefer not to use the bin (e.g. to pick the regex variant):
+
+```bash
+# AST variant (same as the bin above)
+node node_modules/@applens/react-native/dist/ai/index-project-ast.js ./src > app-graph.json
 
 # regex variant
-node node_modules/@applens/react-native/dist/ai/index-project.js ./src > applens-graph.json
+node node_modules/@applens/react-native/dist/ai/index-project.js ./src > app-graph.json
 ```
 
 ```ts
-import graph from './applens-graph.json';
-AppLens.loadKnowledgeGraph(graph);
+AppLens.loadKnowledgeGraph(require('./app-graph.json'));
 ```
 
 Now the AI can answer "which screens use `useCheckout`?" or "what does
 `OrderService` depend on?" — see `KnowledgeGraph.toSummary()` for exactly what
-the model receives.
+the model receives. The in-app **Graph** tab previews the loaded graph (grouped
+by type), and the **AI** tab shows a hint when the graph is empty so you know to
+generate and load one.
 
 > Tip: regenerate the manifest in CI so it stays in sync with the source.
 

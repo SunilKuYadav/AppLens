@@ -4,7 +4,7 @@
 
 A developer-focused debugging, observability, and AI-analysis library for React Native applications. AppLens runs an in-app developer console where you inspect network requests, console logs, application events, and runtime errors, and where you can ask an AI assistant grounded questions about what your app actually did at runtime.
 
-The console is a floating trigger button that opens a full-screen modal with seven tabs: **Overview, Network, Console, Events, Errors, AI, and Settings**.
+The console is a floating trigger button that opens a full-screen modal with eight tabs: **Overview, Network, Console, Events, Errors, AI, Graph, and Settings**.
 
 AppLens is intentionally generic — it carries no assumptions about any particular host app. For the broader product vision, roadmap, and engineering spec, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
@@ -204,7 +204,8 @@ No props required — all configuration is handled via `AppLens.initialize()`. T
 | **Console** | Captured console output (`log`, `info`, `warn`, `error`, `debug`). Searchable and level-filterable. Tap a log for full detail including stack trace. |
 | **Events** | Custom events sent via `AppLens.trackEvent()`. Searchable, filterable, and clearable. |
 | **Errors** | Uncaught errors and (on Hermes) unhandled promise rejections. Each row shows the timestamp, message, and a fatal/non-fatal badge; tap to expand the full stack trace. Searchable and clearable. |
-| **AI** | Conversational AI assistant with context of the application's runtime state and (when a manifest is loaded) its source structure. Each reply shows a collapsible "Context used" section, a Confidence badge, and a Copy button. |
+| **AI** | Conversational AI assistant with context of the application's runtime state and (when a manifest is loaded) its source structure. Each reply shows a collapsible "Context used" section, a Confidence badge, and a Copy button. When no code graph is loaded, a hint points you to `npx applens-index ./src > app-graph.json`. |
+| **Graph** | In-app preview of the loaded code knowledge graph — your app's screens, components, hooks, services, stores, and APIs grouped by type with their dependencies. When no graph is loaded, it shows an empty state with the `npx applens-index ./src > app-graph.json` generate command and the `loadKnowledgeGraph` startup snippet. |
 | **Settings** | Toggle AppLens features on/off at runtime without restarting the app. |
 
 If you need finer placement control, `AppLensProvider` (with the `useAppLens()` hook), `AppLensTrigger`, and `AppLensModal` are exported separately.
@@ -384,24 +385,37 @@ AppLens can correlate runtime activity with your source structure using a pre-bu
 - **Regex indexer** (`index-project.js`) — the original heuristic scanner.
 - **AST indexer** (`index-project-ast.js`) — uses the TypeScript compiler API, so it correctly ignores doc comments and names real exports instead of falling back to filename basenames. More accurate; prefer it.
 
-After a git-tag install the compiled CLIs live under `dist/ai/`:
+After a git-tag install the package exposes an `applens-index` bin, so the
+primary way to generate the manifest is `npx`. Point it at **your own app's**
+source (`./src`), not at AppLens:
 
 ```sh
-# AST variant (recommended)
-node node_modules/@applens/react-native/dist/ai/index-project-ast.js path/to/your/src > graph.json
+# primary command (AST indexer)
+npx applens-index ./src > app-graph.json
+```
+
+The compiled CLIs also live under `dist/ai/`, so you can call them by explicit
+path if you prefer (e.g. to use the regex variant):
+
+```sh
+# AST variant (same as the bin above)
+node node_modules/@applens/react-native/dist/ai/index-project-ast.js ./src > app-graph.json
 
 # regex variant
-node node_modules/@applens/react-native/dist/ai/index-project.js path/to/your/src > graph.json
+node node_modules/@applens/react-native/dist/ai/index-project.js ./src > app-graph.json
 ```
 
 Load the manifest at startup:
 
 ```ts
-import graph from './graph.json';
+import graph from './app-graph.json';
 import { AppLens, GraphNode } from '@applens/react-native';
 
 AppLens.loadKnowledgeGraph(graph as GraphNode[]);
 ```
+
+The in-app **Graph** tab previews the loaded graph, and the **AI** tab shows a
+hint when no graph is loaded.
 
 Both indexers classify files as screen/component/hook/service/store/api, extract top-level entity names, and derive dependencies from relative imports. The regex variant is best-effort; the AST variant resolves declarations and imports through the compiler for a more precise map.
 
@@ -411,7 +425,7 @@ Both indexers classify files as screen/component/hook/service/store/api, extract
 
 ```
                  AppLens UI (AppLensUI)
-   Overview | Network | Console | Events | Errors | AI | Settings
+   Overview | Network | Console | Events | Errors | AI | Graph | Settings
                            │
                      AppLens (singleton)
                            │
@@ -444,7 +458,7 @@ Source layout:
     │   └── MemoryStorage.ts    # In-memory ring-buffer implementation
     ├── components/             # AppLensModal, AppLensTrigger, Badge, JSONViewer, …
     ├── tabs/                   # OverviewTab, NetworkTab, ConsoleTab, EventsTab,
-    │                           #   ErrorsTab, AITab, SettingsTab, NetworkDetailScreen
+    │                           #   ErrorsTab, AITab, GraphTab, SettingsTab, NetworkDetailScreen
     ├── ai/
     │   ├── AIProvider.ts       # AIProvider interface + createAIProvider() factory
     │   ├── OpenAIProvider.ts
@@ -469,7 +483,7 @@ For the full engineering spec, implementation-status table, phased roadmap, and 
 
 ## Exports
 
-Values: `AppLens`, `AppLensProvider`, `useAppLens`, `AppLensUI`, `AppLensModal`, `AppLensTrigger`, `redactHeaders`, `redactFields`, `createAIProvider`, `OpenAIProvider`, `LocalAIProvider`, `KnowledgeGraph`, `ContextEngine`.
+Values: `AppLens`, `AppLensProvider`, `useAppLens`, `AppLensUI`, `AppLensModal`, `AppLensTrigger`, `GraphTab`, `redactHeaders`, `redactFields`, `createAIProvider`, `OpenAIProvider`, `LocalAIProvider`, `KnowledgeGraph`, `ContextEngine`.
 
 Types: `AppLensConfig`, `NetworkRequest`, `LogEntry`, `LogLevel`, `AppEvent`, `AppError`, `AIMessage`, `AIConversation`, `ContextChunk`, `AppLensStorage`, `AIProvider`, `GraphNode`, `NodeType`.
 
