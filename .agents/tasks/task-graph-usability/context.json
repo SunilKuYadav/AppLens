@@ -1,0 +1,31 @@
+{
+  "project_type": "React Native debugging/observability library (@applens/react-native) published for git-tag install; consumed TS compiled to dist/ via npm prepare hook",
+  "language": "TypeScript (+ a few hand-written .js CLI wrappers under src/ai)",
+  "build_system": "tsc. `npm run build` = `tsc -p tsconfig.build.json` emitting to dist/ (declaration + declarationMap). tsconfig.json has allowJs:true and tsconfig.build.json include covers src/**/*.js, so the .js CLI wrappers compile into dist/ai/. `npm run prepare` = build (runs on git-URL install). `npm run clean` = rm -rf dist.",
+  "test_framework": "NONE in the library package (no `test` script in package.json). Jest exists only in Example/ and is out of scope. Verification is type-check + build + a runtime smoke-run of the compiled CLI.",
+  "build_command": "npm run build",
+  "test_command": "npm run type-check   (strict tsc --noEmit over all src; this is the primary gate since there is no unit-test runner)",
+  "verification_instructions": "1) `npm run type-check` must exit 0 after every code change (strict mode, exhaustive switch over TabName). 2) `npm run build` must exit 0 and emit dist/. 3) VERIFIED FACT: after build, dist/ai/index-project-ast.js keeps its `#!/usr/bin/env node` shebang on line 1 and runs: `node dist/ai/index-project-ast.js ./src | head -c 1` prints `[`. 4) bin resolution: `node -e \"const p=require('./package.json');require('fs').accessSync(p.bin['applens-index']);console.log('bin ok')\"` after build. Grep is NOT verification. Clean dist/ with `npm run clean` before committing (dist is build output, not committed).",
+  "snapshot_or_generated_files": "dist/ is build output produced by `prepare`/`build` and is NOT committed (package.json `files` ships it only in the published tarball). Do not stage dist/. app-graph.json is a consumer artifact, not part of this repo.",
+  "environment_constraints": "No network/test server needed. `npm run type-check` and `npm run build` run offline. Running the CLI (`node dist/ai/index-project-ast.js ./src`) requires a prior `npm run build`.",
+  "contribution_requirements": "No AGENTS.md / CONTRIBUTING.md / .kiro steering files exist. Conventions are inferred from existing code. Do NOT bump package version (stays 0.3.2) and do NOT create a git tag. Keep all existing public exports intact (no breaking changes). Keep both existing CLI wrappers and their direct-run paths.",
+  "key_patterns": "Tabs: add a tab by (a) widening the TabName union in src/core/AppLensProvider.tsx, (b) adding the name to the TABS array in src/components/AppLensModal.tsx, (c) adding a switch case in TabContent, (d) importing the tab component. Tab components are ScrollView/FlatList with a dark palette: bg #0d0d0d, cards #1a1a1a, accent green #00ff88, body #e8e8e8/#ccc, muted #888/#555, borders #2a2a2a/#222. Section-header style: color #888, 11px, fontWeight 700, uppercase, letterSpacing 0.8 (see SettingsTab/OverviewTab). Empty-state visual language: AITab's SetupPrompt (centered title in accent, muted body, labeled code blocks with codeBlock/codeText styles). Graph access: AppLens.getKnowledgeGraph(); empty = getNodes().length === 0. GraphNode = { name, type, file, dependencies[] }; NodeType order screen->component->hook->service->store->api.",
+  "relevant_files": [
+    "src/core/AppLensProvider.tsx (TabName union — add 'Graph' after 'AI')",
+    "src/tabs/GraphTab.tsx (NEW — create)",
+    "src/components/AppLensModal.tsx (TABS array + TabContent switch + import; becomes 8 tabs)",
+    "src/tabs/AITab.tsx (add empty-graph hint on configured/chat path; SetupPrompt/codeBlock styles to mirror)",
+    "src/tabs/SettingsTab.tsx (pattern: card/sectionHeader/ScrollView — study, do not change)",
+    "src/tabs/OverviewTab.tsx (pattern: StatCard/SectionHeader — study, do not change)",
+    "src/ai/KnowledgeGraph.ts (GraphNode/NodeType, getNodes/toSummary — read, do not change)",
+    "src/core/AppLens.ts (getKnowledgeGraph/loadKnowledgeGraph — read, do not change)",
+    "src/index.ts (barrel — export GraphTab)",
+    "src/ai/index-project-ast.js (AST CLI with shebang — bin target; do not change)",
+    "package.json (add bin entry; do NOT bump version)",
+    "docs/AI-INTEGRATION.md (\u00a73.2 generate command)",
+    "docs/AI-SETUP.md (file map / generate command)",
+    "README.md (tab counts in intro, AppLensUI tab table, ASCII diagram; knowledge-graph section)",
+    "CHANGELOG.md (add [Unreleased] at top)"
+  ],
+  "directory_structure": "src/core (AppLens singleton, provider, config), src/tabs (one component per modal tab), src/components (AppLensModal, AppLensTrigger, Badge, JSONViewer), src/ai (KnowledgeGraph, ContextEngine, providers, CodeIndexer + AstCodeIndexer + their index-project*.js CLI wrappers), src/types, src/storage, src/utils, src/index.ts barrel. docs/ holds AI-SETUP.md, AI-INTEGRATION.md, ARCHITECTURE.md. Example/ is a separate consuming app (out of scope)."
+}

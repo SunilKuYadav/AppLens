@@ -1,0 +1,7 @@
+{
+  "task_id": "task-graph-usability",
+  "task_description": "Make the AppLens host-app knowledge graph discoverable, generatable with one command, and previewable in-app: add an in-app Graph preview tab (A), an `npx applens-index` bin command (B), an AI-tab empty-graph hint (C), export new symbols, and update docs. No version bump, no new tag.",
+  "status": "completed",
+  "feature_order": ["FEAT-001", "FEAT-002"],
+  "blocked_reason": null
+}
