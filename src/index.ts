@@ -22,6 +22,7 @@ export { redactHeaders, redactFields } from './utils/redact';
 // ─── Components ───────────────────────────────────────────────────────────
 export { AppLensModal } from './components/AppLensModal';
 export { AppLensTrigger } from './components/AppLensTrigger';
+export { GraphTab } from './tabs/GraphTab';
 
 // ─── AI ───────────────────────────────────────────────────────────────────
 export type { AIProvider } from './ai/AIProvider';

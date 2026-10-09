@@ -298,12 +298,26 @@ export function AITab(): React.JSX.Element {
     );
   }
 
+  const graphEmpty = AppLens.getKnowledgeGraph().getNodes().length === 0;
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={80}
     >
+      {/* Empty-graph hint (configured chat path only) */}
+      {graphEmpty && (
+        <View style={styles.graphHint}>
+          <Text style={styles.graphHintLead}>
+            Add a code graph for architecture questions
+          </Text>
+          <Text style={styles.graphHintSub}>
+            Run npx applens-index ./src &gt; app-graph.json, then AppLens.loadKnowledgeGraph(require(./app-graph.json)) at startup.
+          </Text>
+        </View>
+      )}
+
       {/* Message list */}
       <FlatList
         ref={flatListRef}
@@ -425,6 +439,26 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#0d0d0d',
+  },
+
+  // ── Empty-graph hint ──
+  graphHint: {
+    backgroundColor: '#1a1a1a',
+    borderWidth: 1,
+    borderColor: '#2a2a2a',
+    borderRadius: 8,
+    margin: 8,
+    padding: 10,
+  },
+  graphHintLead: {
+    color: '#00ff88',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  graphHintSub: {
+    color: '#888',
+    fontSize: 11,
+    marginTop: 4,
   },
 
   // ── List ──

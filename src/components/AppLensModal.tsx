@@ -14,9 +14,10 @@ import { ConsoleTab } from '../tabs/ConsoleTab';
 import { EventsTab } from '../tabs/EventsTab';
 import { ErrorsTab } from '../tabs/ErrorsTab';
 import { AITab } from '../tabs/AITab';
+import { GraphTab } from '../tabs/GraphTab';
 import { SettingsTab } from '../tabs/SettingsTab';
 
-const TABS: TabName[] = ['Overview', 'Network', 'Console', 'Events', 'Errors', 'AI', 'Settings'];
+const TABS: TabName[] = ['Overview', 'Network', 'Console', 'Events', 'Errors', 'AI', 'Graph', 'Settings'];
 
 function TabContent({ tab }: { tab: TabName }): React.JSX.Element {
   switch (tab) {
@@ -26,6 +27,7 @@ function TabContent({ tab }: { tab: TabName }): React.JSX.Element {
     case 'Events':    return <EventsTab />;
     case 'Errors':    return <ErrorsTab />;
     case 'AI':        return <AITab />;
+    case 'Graph':     return <GraphTab />;
     case 'Settings':  return <SettingsTab />;
     default:          return <OverviewTab />;
   }

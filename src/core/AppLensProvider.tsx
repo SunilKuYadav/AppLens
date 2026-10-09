@@ -29,7 +29,7 @@ interface AppLensContextValue {
   errors: AppError[];
 }
 
-export type TabName = 'Overview' | 'Network' | 'Console' | 'Events' | 'Errors' | 'AI' | 'Settings';
+export type TabName = 'Overview' | 'Network' | 'Console' | 'Events' | 'Errors' | 'AI' | 'Graph' | 'Settings';
 
 const AppLensContext = createContext<AppLensContextValue | null>(null);
 
