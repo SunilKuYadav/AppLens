@@ -2,7 +2,7 @@
   "id": "FEAT-003",
   "type": "docs",
   "description": "User-facing documentation for Agent Mode M1: how a developer runs the agent and points the app at it, and the manual e2e smoke procedure. Captures the confirmed run flow from docs/AGENT_MODE_M1_PLAN.md section 0.5 so the shipped feature is discoverable. Depends on FEAT-001 and FEAT-002 (documents their real commands, flags, and config field). Independent of them otherwise — pure docs, no code behavior change.",
-  "status": "pending",
+  "status": "completed",
   "steps": [
     "Add a README section 'Agent Mode (M1)' documenting: install is unchanged (prepare compiles dist/ai/index-agent.js); run `npx applens-agent --project .` and the printed workspace/loopback URL/token; the flags --project (default cwd), --port, --host (default 127.0.0.1; 0.0.0.0 only with the explicit flag + LAN warning), --token.",
     "Document the aiAgentURL config field alongside the existing LM Studio host table, including the iOS simulator (127.0.0.1), Android emulator (10.0.2.2), and physical-device LAN-IP (requires --host 0.0.0.0) addressing, and that unset = feature off with the AI tab unchanged.",
@@ -18,5 +18,5 @@
     "Manual review: the documented `npx applens-agent` flags and the aiAgentURL field exactly match the implemented cli.ts argument parsing and AppLensConfig field."
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Added a README 'Agent Mode (M1)' section (inserted before '## Architecture') plus an aiAgentURL row in the AppLens.initialize() config table. Documented: unchanged install (prepare -> dist/ai/index-agent.js, applens-agent bin); run flow `npx applens-agent --project .` with the printed workspace/127.0.0.1 listen URL/pair endpoint/token; all four flags verified against src/agent/cli.ts (parseArgs): --project (default process.cwd()), --port (DEFAULT_PORT 4747), --host (DEFAULT_HOST 127.0.0.1; 0.0.0.0 only on explicit flag + printed LAN warning), --token (optional fixed token; else minted per /pair, 5-min TTL, fixed never expires). Per-platform aiAgentURL table (iOS sim 127.0.0.1:4747, Android emu 10.0.2.2:4747, physical device LAN IP:4747 requiring --host 0.0.0.0), unset = feature off / AI tab unchanged — matches AppLensConfig.aiAgentURL?: string (undefined). Manual e2e smoke steps: run against Example/, POST /pair -> {token,wsUrl}, open wsUrl verbatim, bad/missing token -> HTTP 401, ask forcing read_file + get_console_logs round-trip, read-only diff bubble, applens-agent-report.md appended in target root. M1 scope note: read + suggest-patch only, no writes, no command execution. npm run type-check clean. No code behavior changed (docs + task-state JSON only)."
 }

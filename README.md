@@ -94,6 +94,7 @@ Call `AppLens.initialize(config)` once at app startup. It merges your partial co
 | `aiApiKey` | `string` | `undefined` | API key for the AI provider (never logged). Not required for `lmstudio`/`local`. |
 | `aiModel` | `string` | `undefined` | Model identifier, e.g. `'gpt-4o'` for OpenAI or the model name shown in LM Studio. |
 | `aiBaseURL` | `string` | `undefined` | Override the AI provider base URL (e.g. `http://127.0.0.1:1234/v1` for LM Studio). |
+| `aiAgentURL` | `string` | `undefined` | Base URL of a locally-running AppLens agent (e.g. `http://127.0.0.1:4747`). When set, the AI tab routes questions through the agent. `undefined` = agent feature off (AI tab unchanged). See [Agent Mode (M1)](#agent-mode-m1). |
 | `redactHeaders` | `string[]` | built-in list | Header names whose **values** are replaced with `[REDACTED]` in network logs. Default list below. |
 | `redaction` | `{ headers?: string[]; fields?: string[] }` | `undefined` | Structured redaction. When set, request/response JSON **body** fields named in `fields` are redacted (case-insensitive). See [Redaction](#redaction). |
 | `projectRoot` | `string` | `undefined` | Absolute path to the host project root. Reserved for future in-app indexing; not read at runtime today. |
@@ -418,6 +419,82 @@ The in-app **Graph** tab previews the loaded graph, and the **AI** tab shows a
 hint when no graph is loaded.
 
 Both indexers classify files as screen/component/hook/service/store/api, extract top-level entity names, and derive dependencies from relative imports. The regex variant is best-effort; the AST variant resolves declarations and imports through the compiler for a more precise map.
+
+---
+
+## Agent Mode (M1)
+
+Agent Mode lets the AI tab ask a **locally-running agent** grounded questions about your project. Instead of answering only from the in-app context + static knowledge graph, the agent reads your actual source files on demand, pulls the current console/network logs back from the device, and can suggest a code change as a read-only diff.
+
+M1 is deliberately narrow: the agent is **read + suggest-patch only**. It never writes to your source, never applies a patch, and never runs commands. The only file it writes is its own `applens-agent-report.md` audit log in the target project root.
+
+### Install
+
+Install is unchanged — Agent Mode ships inside the same `@applens/react-native` package. The `prepare` build that runs on install compiles the agent entry point to `dist/ai/index-agent.js`, which the package exposes as the `applens-agent` bin.
+
+### Run the agent
+
+From your app's project root, start the agent and point it at the project you want it to read:
+
+```sh
+npx applens-agent --project .
+```
+
+On startup it prints the resolved workspace, the loopback listen URL, the pairing endpoint, and a single-session pairing token:
+
+```
+AppLens Agent is running.
+  Workspace: /path/to/your/project
+  Listening: http://127.0.0.1:4747
+  Pair with: POST http://127.0.0.1:4747/pair
+  Token:     <48-hex-char token>
+Waiting for a device to connect… (Ctrl+C to stop)
+```
+
+Leave it running while you use the AI tab. Press Ctrl+C to stop.
+
+#### Flags
+
+| Flag | Default | Description |
+| --- | --- | --- |
+| `--project` | current working directory | Project root the agent reads. Resolved and validated at startup; the agent cannot read outside this root. |
+| `--port` | `4747` | TCP port to listen on. |
+| `--host` | `127.0.0.1` | Interface to bind. Stays on loopback by default. Pass `--host 0.0.0.0` only to reach the agent from a **physical device** on your LAN — doing so prints a LAN-exposure warning, since any device on the network can then reach the port (the pairing token is still required). |
+| `--token` | minted per `/pair` | Optional fixed pairing token (dev convenience). When omitted, a fresh single-session token is minted on each `POST /pair` and expires after 5 minutes if unused; a fixed `--token` never expires. |
+
+### Point the app at the agent
+
+Set `aiAgentURL` in `AppLens.initialize()` to the agent's base URL. When it is set and reachable, the AI tab routes questions through the agent; when it is unset or the agent is unreachable, the AI tab behaves exactly as today (direct LLM + static knowledge graph) — no regression.
+
+The correct host depends on where the app runs, the same way the LM Studio base URL does. On an Android emulator, `127.0.0.1` refers to the emulator itself — not your computer — so it must reach the host via `10.0.2.2`.
+
+| Platform | `aiAgentURL` | Agent `--host` |
+| --- | --- | --- |
+| iOS simulator | `http://127.0.0.1:4747` | default (`127.0.0.1`) |
+| Android emulator | `http://10.0.2.2:4747` | default (`127.0.0.1`) |
+| Physical device | `http://<your-computer-LAN-IP>:4747` | `0.0.0.0` (required, prints LAN warning) |
+
+```ts
+// iOS simulator
+AppLens.initialize({
+  ai: true,
+  aiAgentURL: 'http://127.0.0.1:4747',
+});
+```
+
+Leave `aiAgentURL` unset to keep Agent Mode off.
+
+### Manual e2e smoke
+
+A quick end-to-end check that the agent, pairing, tool round-trip, and patch bubble all work:
+
+1. Start the agent against the Example app's project: `npx applens-agent --project Example` (or run `npx applens-agent --project .` from inside `Example/`). Note the printed listen URL and token.
+2. Pair from a tiny WebSocket client: `POST http://127.0.0.1:4747/pair` with a JSON body (the body is advisory and ignored in M1). The response is `{ token, wsUrl }`; open `wsUrl` verbatim (the token is embedded as the `?token=` query param). A WS upgrade with a wrong/missing token is rejected with `HTTP/1.1 401 Unauthorized`.
+3. Send an `ask` message that forces both tool kinds — e.g. a question that makes the model read a source file (a `read_file` round-trip) **and** inspect runtime output (a `get_console_logs` round-trip, which the device answers from `AppLens.getStorage()`). Confirm reply tokens stream back.
+4. Confirm a **patch** message arrives when the model proposes a change, and that the AI tab renders it as a read-only diff bubble (unified diff + rationale + Copy button; no apply/reject).
+5. Confirm `applens-agent-report.md` was appended in the target project root (the agent's own audit log — gitignore it, do not commit).
+
+**M1 scope:** read + suggest-patch only. The agent does not write source files, does not apply patches, and does not execute commands.
 
 ---
 
