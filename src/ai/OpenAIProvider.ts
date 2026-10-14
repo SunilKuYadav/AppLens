@@ -32,6 +32,16 @@ export class OpenAIProvider implements AIProvider {
   }
 
   async chat(messages: AIMessage[], context: ContextChunk[]): Promise<string> {
+    // Implemented in terms of chatStream with a no-op token callback so both
+    // paths share the exact same prompt-building and error-handling logic.
+    return this.chatStream(messages, context, () => {});
+  }
+
+  async chatStream(
+    messages: AIMessage[],
+    context: ContextChunk[],
+    onToken: (deltaText: string) => void,
+  ): Promise<string> {
     try {
       const systemPrompt = this.buildSystemPrompt(context);
 
@@ -50,18 +60,26 @@ export class OpenAIProvider implements AIProvider {
           ),
       ];
 
-      const response = await this.client.chat.completions.create({
+      const stream = await this.client.chat.completions.create({
         model: this.model,
         messages: openAIMessages,
-        stream: false,
+        stream: true,
       });
 
-      const content = response.choices[0]?.message?.content;
-      if (content == null) {
+      let fullText = '';
+      for await (const chunk of stream) {
+        const delta = chunk.choices[0]?.delta?.content;
+        if (delta) {
+          fullText += delta;
+          onToken(delta);
+        }
+      }
+
+      if (fullText.length === 0) {
         throw new Error('OpenAI returned an empty response.');
       }
 
-      return content;
+      return fullText;
     } catch (err: unknown) {
       const base = 'AppLens AI: OpenAI request failed';
       if (err instanceof Error) {

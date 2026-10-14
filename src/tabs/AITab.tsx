@@ -219,9 +219,49 @@ export function AITab(): React.JSX.Element {
   const [messages, setMessages] = useState<AIMessage[]>([WELCOME_MESSAGE]);
   const [contextSummaries, setContextSummaries] = useState<Record<string, string>>({});
   const [inputText, setInputText] = useState('');
-  const [loading, setLoading] = useState(false);
+  // `thinking` drives the "AppLens AI is thinking…" indicator (shown only
+  // until the first token arrives). `busy` stays true for the whole request
+  // so the input/send button are disabled while a reply is in flight.
+  const [thinking, setThinking] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   const flatListRef = useRef<FlatList<AIMessage>>(null);
+
+  // ── Streaming scratch state ──
+  // Tokens accumulate into a ref and are flushed to React state on an
+  // animation frame, so a fast local model doesn't trigger a setState (and a
+  // full-list re-render) per token.
+  const streamBufferRef = useRef('');
+  const streamingIdRef = useRef<string | null>(null);
+  const rafRef = useRef<number | null>(null);
+
+  const flushStream = useCallback(() => {
+    rafRef.current = null;
+    const id = streamingIdRef.current;
+    if (id === null) {
+      return;
+    }
+    const content = streamBufferRef.current;
+    setMessages((prev) =>
+      prev.map((m) => (m.id === id ? { ...m, content } : m)),
+    );
+  }, []);
+
+  const scheduleFlush = useCallback(() => {
+    if (rafRef.current !== null) {
+      return;
+    }
+    rafRef.current = requestAnimationFrame(flushStream);
+  }, [flushStream]);
+
+  // Cancel any pending animation frame on unmount.
+  useEffect(() => {
+    return () => {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+      }
+    };
+  }, []);
 
   // Scroll to bottom when new messages arrive
   useEffect(() => {
@@ -234,7 +274,7 @@ export function AITab(): React.JSX.Element {
 
   const handleSend = useCallback(async () => {
     const text = inputText.trim();
-    if (!text || loading) {
+    if (!text || busy) {
       return;
     }
 
@@ -245,9 +285,17 @@ export function AITab(): React.JSX.Element {
       timestamp: Date.now(),
     };
 
+    // Generate the assistant message id up front so streamed tokens target it.
+    const assistantId = generateId();
+
     setMessages((prev) => [...prev, userMessage]);
     setInputText('');
-    setLoading(true);
+    setBusy(true);
+    setThinking(true);
+
+    // Reset the streaming scratch buffers for this turn.
+    streamBufferRef.current = '';
+    streamingIdRef.current = assistantId;
 
     try {
       // Retrieve relevant context chunks for this question
@@ -259,35 +307,62 @@ export function AITab(): React.JSX.Element {
         (m) => m.role !== 'system',
       );
 
-      const reply = await provider.chat(conversationHistory, contextChunks);
-
+      // Append an empty assistant bubble that tokens will stream into.
       const assistantMessage: AIMessage = {
-        id: generateId(),
+        id: assistantId,
         role: 'assistant',
-        content: reply,
+        content: '',
         timestamp: Date.now(),
       };
-
-      setContextSummaries((prev) => ({ ...prev, [assistantMessage.id]: summary }));
+      setContextSummaries((prev) => ({ ...prev, [assistantId]: summary }));
       setMessages((prev) => [...prev, assistantMessage]);
+
+      let firstToken = true;
+      const reply = await provider.chatStream(
+        conversationHistory,
+        contextChunks,
+        (delta) => {
+          streamBufferRef.current += delta;
+          // Hide the "thinking…" indicator as soon as the first token lands.
+          if (firstToken) {
+            firstToken = false;
+            setThinking(false);
+          }
+          scheduleFlush();
+        },
+      );
+
+      // Final flush: ensure the complete reply is committed to state even if
+      // the last tokens arrived between animation frames.
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+      setMessages((prev) =>
+        prev.map((m) => (m.id === assistantId ? { ...m, content: reply } : m)),
+      );
     } catch (err: unknown) {
       const errorText =
         err instanceof Error
           ? err.message
           : 'An unexpected error occurred. Please try again.';
 
-      const errorMessage: AIMessage = {
-        id: generateId(),
-        role: 'assistant',
-        content: `⚠️ ${errorText}`,
-        timestamp: Date.now(),
-      };
-
-      setMessages((prev) => [...prev, errorMessage]);
+      // Replace the (possibly empty) streaming bubble with the error text.
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === assistantId ? { ...m, content: `⚠️ ${errorText}` } : m,
+        ),
+      );
     } finally {
-      setLoading(false);
+      streamingIdRef.current = null;
+      setThinking(false);
+      setBusy(false);
     }
-  }, [inputText, loading, messages, provider, contextEngine]);
+  }, [inputText, busy, messages, provider, contextEngine, scheduleFlush]);
 
   // Show setup prompt when AI is not configured
   if (!provider.isConfigured()) {
@@ -333,8 +408,8 @@ export function AITab(): React.JSX.Element {
         }
       />
 
-      {/* Loading indicator */}
-      {loading && (
+      {/* Loading indicator — shown until the first streamed token arrives */}
+      {thinking && (
         <View style={styles.loadingRow}>
           <ActivityIndicator size="small" color="#00ff88" />
           <Text style={styles.loadingText}>AppLens AI is thinking…</Text>
@@ -351,14 +426,14 @@ export function AITab(): React.JSX.Element {
           placeholderTextColor="#555"
           multiline
           maxLength={2000}
-          editable={!loading}
+          editable={!busy}
           returnKeyType="default"
           onSubmitEditing={Platform.OS === 'ios' ? handleSend : undefined}
         />
         <Pressable
-          style={[styles.sendButton, (loading || !inputText.trim()) && styles.sendButtonDisabled]}
+          style={[styles.sendButton, (busy || !inputText.trim()) && styles.sendButtonDisabled]}
           onPress={handleSend}
-          disabled={loading || !inputText.trim()}
+          disabled={busy || !inputText.trim()}
           accessibilityLabel="Send message"
           accessibilityRole="button"
         >

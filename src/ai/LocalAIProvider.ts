@@ -18,4 +18,17 @@ export class LocalAIProvider implements AIProvider {
       'No AI provider configured. Add aiApiKey to AppLens.initialize() to enable AI features.',
     );
   }
+
+  async chatStream(
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _messages: AIMessage[],
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _context: ContextChunk[],
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _onToken: (deltaText: string) => void,
+  ): Promise<string> {
+    throw new Error(
+      'No AI provider configured. Add aiApiKey to AppLens.initialize() to enable AI features.',
+    );
+  }
 }

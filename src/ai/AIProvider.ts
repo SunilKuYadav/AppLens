@@ -16,6 +16,22 @@ export interface AIProvider {
   chat(messages: AIMessage[], context: ContextChunk[]): Promise<string>;
 
   /**
+   * Stream a conversation to the AI backend. `onToken` is invoked with each
+   * incremental text delta as it arrives, and the returned promise resolves
+   * with the full accumulated reply once streaming completes (so callers can
+   * still parse confidence / persist the complete string).
+   *
+   * @param messages - The conversation history (user + assistant turns)
+   * @param context  - Relevant runtime/code context chunks to inject into the prompt
+   * @param onToken  - Called with each non-empty incremental delta
+   */
+  chatStream(
+    messages: AIMessage[],
+    context: ContextChunk[],
+    onToken: (deltaText: string) => void,
+  ): Promise<string>;
+
+  /**
    * Returns true when the provider is ready to accept requests.
    * A provider is "configured" when it has the credentials it needs.
    */
