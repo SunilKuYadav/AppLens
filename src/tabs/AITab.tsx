@@ -18,6 +18,8 @@ import { AIMessage, AIUsage } from '../types/AITypes';
 import { AIProvider, createAIProvider } from '../ai/AIProvider';
 import { ContextEngine } from '../ai/ContextEngine';
 import { Badge } from '../components/Badge';
+import { AgentClient } from '../agent-client/AgentClient';
+import type { PatchMessage } from '../agent/protocol';
 
 // ─── Confidence parsing ────────────────────────────────────────────────────
 
@@ -60,6 +62,33 @@ function formatTimestamp(ms: number): string {
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+/**
+ * Rewrite a loopback host for the Android emulator, which reaches the host
+ * machine at 10.0.2.2 rather than 127.0.0.1/localhost. iOS simulator and
+ * physical-device LAN IPs are left untouched. Mirrors the LM Studio addressing
+ * rules in OpenAIProvider.buildConnectionHelp.
+ */
+function adjustLoopbackHost(url: string): string {
+  if (Platform.OS !== 'android') {
+    return url;
+  }
+  return url.replace(/\/\/(127\.0\.0\.1|localhost)(?=[:/]|$)/, '//10.0.2.2');
+}
+
+/** Resolve the agent base URL for the current platform. */
+function resolveAgentURL(agentURL: string): string {
+  return adjustLoopbackHost(agentURL);
+}
+
+/**
+ * Resolve the WS URL returned by `POST /pair` for the current platform. The
+ * agent prints a loopback host; on the Android emulator that must become
+ * 10.0.2.2 to reach the developer's machine.
+ */
+function resolveAgentWsURL(wsUrl: string, _agentURL: string): string {
+  return adjustLoopbackHost(wsUrl);
 }
 
 /**
@@ -172,6 +201,58 @@ function MessageBubble({ message, contextSummary }: BubbleProps): React.JSX.Elem
   );
 }
 
+// ─── Patch (diff) bubble ──────────────────────────────────────────────────────
+
+/** A proposed diff surfaced by the agent, paired with the assistant turn. */
+interface AgentPatch {
+  /** Stable id for list keying (derived from the owning assistant message). */
+  id: string;
+  /** The assistant message this patch belongs to. */
+  assistantId: string;
+  /** Workspace-relative path the diff applies to. */
+  path: string;
+  /** The unified-diff text. */
+  diff: string;
+  /** A short human-readable rationale for the change. */
+  rationale: string;
+}
+
+/** A single row in the chat FlatList: either a message or a proposed patch. */
+type ListItem =
+  | { kind: 'message'; key: string; message: AIMessage }
+  | { kind: 'patch'; key: string; patch: AgentPatch };
+
+/**
+ * A read-only diff bubble for an agent-proposed patch. Reuses the markdown
+ * fence/code styling to render the unified diff and exposes a Copy button.
+ * M1 is suggest-only — there are intentionally NO apply/reject controls.
+ */
+function PatchBubble({ patch }: { patch: AgentPatch }): React.JSX.Element {
+  const fenced = '```diff\n' + patch.diff + '\n```';
+  return (
+    <View style={[styles.bubbleRow, styles.assistantRow]}>
+      <View style={[styles.bubble, styles.patchBubble]}>
+        <Text style={styles.patchHeader}>Proposed change</Text>
+        <Text style={styles.patchPath}>{patch.path}</Text>
+        {patch.rationale.length > 0 && (
+          <Text style={styles.patchRationale}>{patch.rationale}</Text>
+        )}
+        <Markdown style={markdownStyles}>{fenced}</Markdown>
+        <View style={styles.bubbleFooter}>
+          <TouchableOpacity
+            onPress={() => copyToClipboard(patch.diff)}
+            accessibilityRole="button"
+            accessibilityLabel="Copy diff"
+            activeOpacity={0.7}
+          >
+            <Text style={styles.copyText}>Copy</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 // ─── Setup prompt (when no API key configured) ────────────────────────────────
 
 function SetupPrompt(): React.JSX.Element {
@@ -238,7 +319,16 @@ export function AITab(): React.JSX.Element {
   const provider = providerRef.current.provider;
   const contextEngine = contextEngineRef.current;
 
+  // ── Agent Mode (optional) ──
+  // When config.aiAgentURL is set and a local agent is reachable, questions
+  // route through the agent (project-file reads + runtime-log round-trip +
+  // proposed diffs). When it is unset or unreachable, the AI tab behaves
+  // EXACTLY as today (provider.chatStream + ContextEngine) — no regression.
+  const agentClientRef = useRef<AgentClient | null>(null);
+  const agentReadyRef = useRef(false);
+
   const [messages, setMessages] = useState<AIMessage[]>([WELCOME_MESSAGE]);
+  const [patches, setPatches] = useState<AgentPatch[]>([]);
   const [contextSummaries, setContextSummaries] = useState<Record<string, string>>({});
   const [inputText, setInputText] = useState('');
   // `thinking` drives the "AppLens AI is thinking…" indicator (shown only
@@ -247,7 +337,7 @@ export function AITab(): React.JSX.Element {
   const [thinking, setThinking] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  const flatListRef = useRef<FlatList<AIMessage>>(null);
+  const flatListRef = useRef<FlatList<ListItem>>(null);
 
   // ── Streaming scratch state ──
   // Tokens accumulate into a ref and are flushed to React state on an
@@ -285,6 +375,51 @@ export function AITab(): React.JSX.Element {
     };
   }, []);
 
+  // Probe for a local agent on mount. Pair + connect if reachable; on any
+  // failure we silently keep agentReady false and fall back to the direct
+  // provider path. The URL is adjusted for the platform's loopback rules,
+  // mirroring the LM Studio addressing hints in OpenAIProvider.
+  useEffect(() => {
+    const agentURL = config.aiAgentURL;
+    if (!agentURL) {
+      return;
+    }
+
+    let cancelled = false;
+    const client = new AgentClient(resolveAgentURL(agentURL), () =>
+      AppLens.getStorage(),
+    );
+
+    (async () => {
+      try {
+        const { wsUrl } = await client.pair({ platform: Platform.OS });
+        if (cancelled) {
+          client.close();
+          return;
+        }
+        await client.connect(resolveAgentWsURL(wsUrl, agentURL));
+        if (cancelled) {
+          client.close();
+          return;
+        }
+        agentClientRef.current = client;
+        agentReadyRef.current = true;
+      } catch {
+        // Unreachable / unset / handshake failure → stay on the direct path.
+        agentReadyRef.current = false;
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      agentReadyRef.current = false;
+      client.close();
+      if (agentClientRef.current === client) {
+        agentClientRef.current = null;
+      }
+    };
+  }, [config.aiAgentURL]);
+
   // Scroll to bottom when new messages arrive
   useEffect(() => {
     if (messages.length > 0) {
@@ -320,14 +455,22 @@ export function AITab(): React.JSX.Element {
     streamingIdRef.current = assistantId;
 
     try {
-      // Retrieve relevant context chunks for this question
-      const contextChunks = contextEngine.getRelevantContext(text);
-      const summary = contextEngine.getContextSummary(text);
-
       // Get the full conversation (excluding the system welcome)
       const conversationHistory = [...messages, userMessage].filter(
         (m) => m.role !== 'system',
       );
+
+      const agentClient = agentReadyRef.current ? agentClientRef.current : null;
+
+      // Context summary is only meaningful for the direct (ContextEngine)
+      // path; the agent assembles its own context on the laptop side.
+      const contextChunks = agentClient
+        ? []
+        : contextEngine.getRelevantContext(text);
+      if (!agentClient) {
+        const summary = contextEngine.getContextSummary(text);
+        setContextSummaries((prev) => ({ ...prev, [assistantId]: summary }));
+      }
 
       // Append an empty assistant bubble that tokens will stream into.
       const assistantMessage: AIMessage = {
@@ -336,23 +479,51 @@ export function AITab(): React.JSX.Element {
         content: '',
         timestamp: Date.now(),
       };
-      setContextSummaries((prev) => ({ ...prev, [assistantId]: summary }));
       setMessages((prev) => [...prev, assistantMessage]);
 
       let firstToken = true;
-      const { text: reply, usage } = await provider.chatStream(
-        conversationHistory,
-        contextChunks,
-        (delta) => {
-          streamBufferRef.current += delta;
-          // Hide the "thinking…" indicator as soon as the first token lands.
-          if (firstToken) {
-            firstToken = false;
-            setThinking(false);
-          }
-          scheduleFlush();
-        },
-      );
+      const onDelta = (delta: string): void => {
+        streamBufferRef.current += delta;
+        // Hide the "thinking…" indicator as soon as the first token lands.
+        if (firstToken) {
+          firstToken = false;
+          setThinking(false);
+        }
+        scheduleFlush();
+      };
+
+      let reply: string;
+      let usage: AIUsage | undefined;
+
+      if (agentClient) {
+        // ── Agent path: route the question through the local agent. ──
+        const result = await agentClient.ask(text, conversationHistory, {
+          onToken: onDelta,
+          onPatch: (patch: PatchMessage) => {
+            setPatches((prev) => [
+              ...prev,
+              {
+                id: `${assistantId}-patch-${prev.length}`,
+                assistantId,
+                path: patch.path,
+                diff: patch.diff,
+                rationale: patch.rationale,
+              },
+            ]);
+          },
+        });
+        reply = result.text;
+        usage = result.usage;
+      } else {
+        // ── Direct path: unchanged behavior (provider + ContextEngine). ──
+        const result = await provider.chatStream(
+          conversationHistory,
+          contextChunks,
+          onDelta,
+        );
+        reply = result.text;
+        usage = result.usage;
+      }
 
       // Final flush: ensure the complete reply is committed to state even if
       // the last tokens arrived between animation frames.
@@ -399,6 +570,18 @@ export function AITab(): React.JSX.Element {
 
   const graphEmpty = AppLens.getKnowledgeGraph().getNodes().length === 0;
 
+  // Interleave read-only diff bubbles directly after the assistant message
+  // they belong to, so a proposed patch renders beneath its answer.
+  const listItems: ListItem[] = [];
+  for (const message of messages) {
+    listItems.push({ kind: 'message', key: message.id, message });
+    for (const patch of patches) {
+      if (patch.assistantId === message.id) {
+        listItems.push({ kind: 'patch', key: patch.id, patch });
+      }
+    }
+  }
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -420,11 +603,18 @@ export function AITab(): React.JSX.Element {
       {/* Message list */}
       <FlatList
         ref={flatListRef}
-        data={messages}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <MessageBubble message={item} contextSummary={contextSummaries[item.id]} />
-        )}
+        data={listItems}
+        keyExtractor={(item) => item.key}
+        renderItem={({ item }) =>
+          item.kind === 'message' ? (
+            <MessageBubble
+              message={item.message}
+              contextSummary={contextSummaries[item.message.id]}
+            />
+          ) : (
+            <PatchBubble patch={item.patch} />
+          )
+        }
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
         onContentSizeChange={() =>
@@ -614,6 +804,31 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 4,
     borderWidth: 1,
     borderColor: '#2a2a2a',
+  },
+  patchBubble: {
+    backgroundColor: '#141414',
+    borderBottomLeftRadius: 4,
+    borderWidth: 1,
+    borderColor: '#00ff88',
+  },
+  patchHeader: {
+    color: '#00ff88',
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  patchPath: {
+    color: '#e8e8e8',
+    fontSize: 13,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    marginTop: 2,
+  },
+  patchRationale: {
+    color: '#aaaaaa',
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 6,
   },
   bubbleText: {
     fontSize: 14,

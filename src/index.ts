@@ -32,3 +32,27 @@ export { LocalAIProvider } from './ai/LocalAIProvider';
 export { KnowledgeGraph } from './ai/KnowledgeGraph';
 export type { GraphNode, NodeType } from './ai/KnowledgeGraph';
 export { ContextEngine } from './ai/ContextEngine';
+
+// ─── Agent Mode (device client + shared protocol TYPES only) ────────────────
+// Only the RN-safe AgentClient and the shared protocol message TYPES are
+// re-exported. Nothing else from src/agent/** (Node-only) is exposed here, so
+// the RN bundle never pulls in `ws` or any node:* module.
+export { AgentClient } from './agent-client/AgentClient';
+export type { AskHandlers, AskResult } from './agent-client/AgentClient';
+export type {
+  DeviceToolName,
+  AskMessage,
+  TokenMessage,
+  PatchMessage,
+  AnswerMessage,
+  ErrorMessage,
+  ToolCallMessage,
+  ToolResultMessage,
+  DeviceToAgentMessage,
+  AgentToDeviceMessage,
+  AgentMessage,
+  NetworkLogSummary,
+  ConsoleLogSummary,
+  PairRequest,
+  PairResponse,
+} from './agent/protocol';
