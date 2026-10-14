@@ -1,0 +1,34 @@
+{
+  "verdict": "APPROVED",
+  "findings": [
+    {
+      "severity": "info",
+      "detail": "npm run type-check is clean (tsc --noEmit, exit 0)."
+    },
+    {
+      "severity": "info",
+      "detail": "npm run build emits dist/ai/index-agent.js, dist/agent/cli.js, dist/agent/server.js, dist/agent/workspace/FileAccess.js, and dist/agent-client/AgentClient.js."
+    },
+    {
+      "severity": "info",
+      "detail": "No src/agent leak into the RN barrel: dist/index.js's only agent-related require is ./agent-client/AgentClient, and dist/agent-client/AgentClient.js has ZERO require() calls (all protocol/type imports are `import type`, erased at emit). No require of ws, node:*, http, crypto, fs, or src/agent/** appears in the barrel. dist/index.d.ts exposes exactly AgentClient + AskHandlers/AskResult + the shared protocol TYPES and nothing else."
+    },
+    {
+      "severity": "info",
+      "detail": "npm run test:agent passes all six FileAccess cases: ../ escape rejected, absolute path rejected, symlink-escape rejected, in-workspace read ok, deny-list enforced, size cap enforced (6 pass / 0 fail)."
+    },
+    {
+      "severity": "info",
+      "detail": "propose_patch writes nothing: proposePatch() only reads current content via FileAccess.readFile, builds a unified-diff string, and returns it; a path that resolves outside the workspace / absolute / ignored is re-thrown. The only file the agent writes is applens-agent-report.md (pure appendFile) in the target project root, and it is not committed to the repo."
+    },
+    {
+      "severity": "info",
+      "detail": "AITab fallback is a true no-regression: when agentReadyRef is false (aiAgentURL unset or pair/connect failed), handleSend takes the direct branch — contextEngine.getRelevantContext + getContextSummary + provider.chatStream(conversationHistory, contextChunks, onDelta) — byte-for-byte equivalent to the prior behavior; the only refactor is extracting the delta handler into onDelta with an identical body. Mount probe silently swallows all failures and the effect cleanup cancels in-flight pairing and closes the socket."
+    },
+    {
+      "severity": "info",
+      "detail": "Nothing out-of-scope was added. No apply_patch/applyPatch, no command execution (no child_process/execSync/spawn), no AST tools (find_symbol/find_usages), no native function-calling (the loop is prompt-driven JSON with an 8-round MAX_TOOL_ROUNDS cap), no monorepo split (shipped in the same @applens/react-native package as the applens-agent bin), and the PatchBubble has only a Copy button with no apply/reject controls. The sole apply_patch reference is a comment documenting that it is out of scope. Security posture is correct for M1: server binds 127.0.0.1 by default, 0.0.0.0 only via explicit --host with a printed LAN warning, WS upgrade validates the ?token= query param and rejects a bad/missing token with HTTP 401, minted tokens are 48-hex single-session with a 5-min TTL. README docs (flags, per-platform aiAgentURL table, scope note) match cli.ts and AppLensConfig exactly."
+    }
+  ],
+  "summary": "APPROVED. Independently verified: type-check clean; build emits dist/ai/index-agent.js and dist/agent/** with no src/agent leak into the RN barrel (only AgentClient + protocol TYPES, and AgentClient.js has zero requires); test:agent passes all six FileAccess cases; propose_patch writes nothing (only applens-agent-report.md is appended, uncommitted); the AITab direct path is a true no-regression; and nothing out-of-scope (apply_patch, command execution, AST tools, native function-calling, monorepo split, apply/reject buttons) was added. The implementation matches the AGENT_MODE_M1_PLAN spec and context.json."
+}
