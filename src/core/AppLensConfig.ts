@@ -26,6 +26,14 @@ export interface AppLensConfig {
   aiModel?: string;
   /** Override the base URL for the AI provider (e.g. 'http://127.0.0.1:1234/v1' for LM Studio) */
   aiBaseURL?: string;
+  /**
+   * Base URL of a locally-running AppLens agent (e.g. 'http://127.0.0.1:4747').
+   * When set, the AI tab routes questions through the agent (reads project
+   * files, pulls runtime logs back from the device, streams the answer + any
+   * proposed diff). `undefined` = agent feature off; the AI tab behaves exactly
+   * as today (direct LLM + static knowledge graph).
+   */
+  aiAgentURL?: string;
   /** Header names whose values should be replaced with '[REDACTED]' */
   redactHeaders: string[];
   /** Absolute path to the application's project root for source indexing */
@@ -64,6 +72,7 @@ export const DEFAULT_CONFIG: AppLensConfig = {
   aiApiKey: undefined,
   aiModel: undefined,
   aiBaseURL: undefined,
+  aiAgentURL: undefined,
   redactHeaders: REDACTED_HEADERS,
   projectRoot: undefined,
   maxNetworkEntries: 500,

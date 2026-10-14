@@ -1,0 +1,22 @@
+{
+  "id": "FEAT-003",
+  "type": "docs",
+  "description": "User-facing documentation for Agent Mode M1: how a developer runs the agent and points the app at it, and the manual e2e smoke procedure. Captures the confirmed run flow from docs/AGENT_MODE_M1_PLAN.md section 0.5 so the shipped feature is discoverable. Depends on FEAT-001 and FEAT-002 (documents their real commands, flags, and config field). Independent of them otherwise — pure docs, no code behavior change.",
+  "status": "pending",
+  "steps": [
+    "Add a README section 'Agent Mode (M1)' documenting: install is unchanged (prepare compiles dist/ai/index-agent.js); run `npx applens-agent --project .` and the printed workspace/loopback URL/token; the flags --project (default cwd), --port, --host (default 127.0.0.1; 0.0.0.0 only with the explicit flag + LAN warning), --token.",
+    "Document the aiAgentURL config field alongside the existing LM Studio host table, including the iOS simulator (127.0.0.1), Android emulator (10.0.2.2), and physical-device LAN-IP (requires --host 0.0.0.0) addressing, and that unset = feature off with the AI tab unchanged.",
+    "Document the manual e2e smoke steps (run agent against Example/, pair from a tiny WS client, ask a question forcing a read_file + a get_console_logs round-trip, confirm a patch bubble and that applens-agent-report.md is appended) and note the M1 scope: read + suggest-patch only, no writes, no command execution."
+  ],
+  "acceptance_criteria": [
+    "README documents the applens-agent run flow, all four flags, and the aiAgentURL config field with per-platform addressing.",
+    "The documented commands and flags match cli.ts (FEAT-001) and the config field matches AppLensConfig (FEAT-001).",
+    "The manual e2e smoke procedure is written out and matches the verification in context.json."
+  ],
+  "verification": [
+    "npm run type-check (confirms docs changes did not touch compilation).",
+    "Manual review: the documented `npx applens-agent` flags and the aiAgentURL field exactly match the implemented cli.ts argument parsing and AppLensConfig field."
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

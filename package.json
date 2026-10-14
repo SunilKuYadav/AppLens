@@ -5,7 +5,8 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "applens-index": "dist/ai/index-project-ast.js"
+    "applens-index": "dist/ai/index-project-ast.js",
+    "applens-agent": "dist/ai/index-agent.js"
   },
   "files": [
     "dist",
@@ -15,6 +16,7 @@
   "scripts": {
     "type-check": "tsc --noEmit",
     "build": "tsc -p tsconfig.build.json",
+    "test:agent": "node --test dist/agent/workspace/",
     "clean": "rm -rf dist",
     "prepare": "npm run build",
     "sync-version": "node scripts/sync-version.js",
@@ -33,11 +35,13 @@
   "dependencies": {
     "openai": "^4.0.0",
     "react-native-markdown-display": "7.0.2",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "@react-native/typescript-config": "^0.73.0",
     "@types/node": "^18.19.0",
+    "@types/ws": "^8.5.10",
     "@types/react": "^19.3.0",
     "@types/react-native": "^0.72.8",
     "typescript": "^5.0.0"

@@ -1,0 +1,7 @@
+{
+  "task_id": "task-agent-mode-m1",
+  "task_description": "Implement Milestone 1 of AppLens Agent Mode (read + suggest-patch only) inside the existing @applens/react-native package: a Node-only agent process (FileAccess security boundary, read tools, prompt-driven AIProvider loop, propose-patch, WS+HTTP pairing server, runtime-log tools that resolve on the device, CLI + applens-agent bin) plus the RN-safe device client and AI-tab wiring (probe/fallback, streamed answers, read-only diff bubble). Follows docs/AGENT_MODE_M1_PLAN.md section 7 build order and scope exactly. No project-source writes, no command execution.",
+  "status": "pending",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
+  "blocked_reason": null
+}

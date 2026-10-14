@@ -1,0 +1,29 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "The RN-safe device side: src/agent-client/AgentClient.ts plus the AITab wiring and barrel exports. AgentClient pairs over POST /pair, opens the WS with the RN global WebSocket, exposes ask(question, conversation, {onToken, onPatch}), and ANSWERS inbound device-side tool_calls (get_network_logs/get_console_logs) from AppLens.getStorage(). AITab probes aiAgentURL on mount: reachable routes handleSend through AgentClient and streams via the existing buffer/scheduleFlush and renders a read-only diff bubble; unreachable/unset keeps today's exact behavior (no regression). Only AgentClient and the shared protocol TYPES are re-exported from src/index.ts — nothing else from src/agent. Depends on FEAT-001 for protocol.ts types and the running server contract; this closes the runtime-log round-trip whose agent-side half shipped in FEAT-001.",
+  "status": "pending",
+  "steps": [
+    "Create src/agent-client/AgentClient.ts (RN-safe; use the RN global WebSocket, NOT the `ws` package; import only shared protocol TYPES from src/agent/protocol, no other src/agent import). Methods: constructor(baseURL); pair() -> POST /pair returning {token,wsUrl}; connect() opens the WS presenting the token; ask(question, conversation, {onToken, onPatch}) sends an `ask` message and resolves with the final `answer`, invoking onToken for each `token` delta and onPatch for each `patch`. Handle inbound tool_call for get_network_logs/get_console_logs by reading AppLens.getStorage().getNetworkRequests()/.getLogs(), shaping compact capped summaries (network: method/url/status/duration; console: level/message/timestamp), and replying with a tool_result keyed by callId. Values are already redacted in storage.",
+    "Wire AITab.tsx: on mount probe config.aiAgentURL (AppLens.getConfig()); if set, attempt pair()+connect() with the same iOS-sim/Android-emu(10.0.2.2)/physical-device LAN addressing rules used in OpenAIProvider.buildConnectionHelp. Keep an agentReady ref/state.",
+    "In handleSend, when the agent is ready route the question through AgentClient.ask instead of provider.chatStream, streaming token deltas into the SAME streamBufferRef via scheduleFlush/flushStream into the pre-created assistant bubble. When the agent is not ready/unset, call the existing provider.chatStream + ContextEngine path UNCHANGED — strictly no regression.",
+    "Render patch messages as a NEW read-only diff bubble: a dedicated bubble that reuses markdownStyles (fence/code_block) to show the unified diff plus the rationale and a Copy button (copyToClipboard). No apply/reject buttons.",
+    "Export AgentClient and the shared protocol TYPES from src/index.ts (type-only exports for the protocol message types). Export NOTHING else from src/agent/**."
+  ],
+  "acceptance_criteria": [
+    "npm run type-check passes with AgentClient and the AITab wiring in place.",
+    "src/agent-client/AgentClient.ts imports no Node-only module and no `ws`; it uses the RN global WebSocket and only type imports from src/agent/protocol.",
+    "src/index.ts re-exports exactly AgentClient and shared protocol TYPES and nothing else from src/agent/**.",
+    "With aiAgentURL unset or the agent unreachable, AITab uses the existing provider.chatStream + ContextEngine path with identical behavior to today (no regression).",
+    "An inbound get_console_logs/get_network_logs tool_call is answered from AppLensStorage with a capped, compact tool_result keyed by callId."
+  ],
+  "verification": [
+    "npm run type-check",
+    "npm run build",
+    "Confirm the RN barrel does not leak Node-only code: inspect dist/index.js / dist/index.d.ts and verify only AgentClient and protocol TYPES appear, with no require of ws or node:fs.",
+    "Manual no-regression: with no agent running (aiAgentURL unset), the AI tab streams answers via the existing provider path exactly as before.",
+    "Manual round-trip (with FEAT-001 server running against Example/): ask a question that forces a read_file + a get_console_logs call; confirm token deltas stream, the device answers the log tool_call, and a read-only diff bubble renders when propose_patch fires."
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
