@@ -61,31 +61,63 @@ export class OpenAIProvider implements AIProvider {
         ),
       ];
 
-      const stream = await this.client.chat.completions.create({
-        model: this.model,
-        messages: openAIMessages,
-        stream: true,
-        // Ask the server to emit a final chunk carrying total token usage.
-        // OpenAI and recent LM Studio builds honour this; older servers omit
-        // it, in which case we fall back to a chars/4 estimate below.
-        stream_options: { include_usage: true },
-      });
-
       let fullText = '';
       let apiUsage: OpenAI.Completions.CompletionUsage | undefined;
-      for await (const chunk of stream) {
-        // The usage-only final chunk has an empty `choices` array, so
-        // `choices[0]` is undefined — the optional chaining keeps the delta
-        // loop from crashing on it.
-        const delta = chunk.choices[0]?.delta?.content;
-        if (delta) {
-          fullText += delta;
-          onToken(delta);
+
+      try {
+        const stream = await this.client.chat.completions.create({
+          model: this.model,
+          messages: openAIMessages,
+          stream: true,
+          // Ask the server to emit a final chunk carrying total token usage.
+          // OpenAI and recent LM Studio builds honour this; older servers omit
+          // it, in which case we fall back to a chars/4 estimate below.
+          stream_options: { include_usage: true },
+        });
+
+        for await (const chunk of stream) {
+          // The usage-only final chunk has an empty `choices` array, so
+          // `choices[0]` is undefined — the optional chaining keeps the delta
+          // loop from crashing on it.
+          const delta = chunk.choices[0]?.delta?.content;
+          if (delta) {
+            fullText += delta;
+            onToken(delta);
+          }
+          // Capture the latest non-null usage (present on the final chunk).
+          if (chunk.usage) {
+            apiUsage = chunk.usage;
+          }
         }
-        // Capture the latest non-null usage (present on the final chunk).
-        if (chunk.usage) {
-          apiUsage = chunk.usage;
+      } catch (streamErr: unknown) {
+        // If the streaming attempt failed specifically because the server/shim
+        // does not support streaming, retry ONCE with a non-streaming request
+        // and deliver the whole answer at the end. Any other error (notably a
+        // genuine connection failure) is rethrown so it reaches the outer
+        // connection-error handling below unchanged.
+        const streamMsg = streamErr instanceof Error ? streamErr.message : '';
+        if (!this.isStreamingUnsupported(streamMsg)) {
+          throw streamErr;
         }
+
+        // Non-streaming fallback: keep the body minimal (no stream_options) —
+        // some shims/servers reject unknown fields on the non-stream path.
+        const response = await this.client.chat.completions.create({
+          model: this.model,
+          messages: openAIMessages,
+          stream: false,
+        });
+
+        fullText = response.choices[0]?.message?.content ?? '';
+        if (fullText.length === 0) {
+          throw new Error('OpenAI returned an empty response.');
+        }
+
+        // Deliver the complete response to the caller in a single callback so
+        // the UI renders the whole answer at once.
+        onToken(fullText);
+
+        apiUsage = response.usage ?? undefined;
       }
 
       if (fullText.length === 0) {
@@ -144,6 +176,22 @@ export class OpenAIProvider implements AIProvider {
    * fetch surfaces these as 'Network request failed'; the openai SDK may wrap
    * them as an APIConnectionError whose message contains 'Connection error'.
    */
+  /**
+   * Detect an error that specifically indicates the server/shim does not
+   * support streaming, so chatStream can fall back to a single non-streaming
+   * request. Kept to a focused set of phrases so genuine network/connection
+   * errors are NOT misread as a streaming-fallback trigger.
+   */
+  private isStreamingUnsupported(message: string): boolean {
+    const m = message.toLowerCase();
+    return (
+      m.includes('streaming is not supported') ||
+      m.includes('stream is not supported') ||
+      m.includes('does not support stream') ||
+      m.includes('stream not supported')
+    );
+  }
+
   private isConnectionError(message: string): boolean {
     const m = message.toLowerCase();
     return (
