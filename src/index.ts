@@ -11,7 +11,7 @@ export type { NetworkRequest } from './types/NetworkTypes';
 export type { LogEntry, LogLevel } from './types/LogTypes';
 export type { AppEvent } from './types/EventTypes';
 export type { AppError } from './types/ErrorTypes';
-export type { AIMessage, AIConversation, ContextChunk } from './types/AITypes';
+export type { AIMessage, AIConversation, ContextChunk, AIUsage } from './types/AITypes';
 
 // ─── Storage ──────────────────────────────────────────────────────────────
 export type { AppLensStorage } from './storage/AppLensStorage';

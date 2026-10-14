@@ -21,12 +21,12 @@ const TABS: TabName[] = ['Overview', 'Network', 'Console', 'Events', 'Errors', '
 
 function TabContent({ tab }: { tab: TabName }): React.JSX.Element {
   switch (tab) {
+    case 'AI':        return <AITab />;
     case 'Overview':  return <OverviewTab />;
     case 'Network':   return <NetworkTab />;
     case 'Console':   return <ConsoleTab />;
     case 'Events':    return <EventsTab />;
     case 'Errors':    return <ErrorsTab />;
-    case 'AI':        return <AITab />;
     case 'Graph':     return <GraphTab />;
     case 'Settings':  return <SettingsTab />;
     default:          return <OverviewTab />;

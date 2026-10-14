@@ -1,4 +1,4 @@
-import { AIMessage, ContextChunk } from '../types/AITypes';
+import { AIMessage, AIUsage, ContextChunk } from '../types/AITypes';
 import { AppLensConfig } from '../core/AppLensConfig';
 import { OpenAIProvider } from './OpenAIProvider';
 import { LocalAIProvider } from './LocalAIProvider';
@@ -18,8 +18,9 @@ export interface AIProvider {
   /**
    * Stream a conversation to the AI backend. `onToken` is invoked with each
    * incremental text delta as it arrives, and the returned promise resolves
-   * with the full accumulated reply once streaming completes (so callers can
-   * still parse confidence / persist the complete string).
+   * with an object carrying the full accumulated reply (`text`, so callers can
+   * still parse confidence / persist the complete string) plus optional token
+   * `usage` for the exchange (`undefined` when the backend reports nothing).
    *
    * @param messages - The conversation history (user + assistant turns)
    * @param context  - Relevant runtime/code context chunks to inject into the prompt
@@ -29,7 +30,7 @@ export interface AIProvider {
     messages: AIMessage[],
     context: ContextChunk[],
     onToken: (deltaText: string) => void,
-  ): Promise<string>;
+  ): Promise<{ text: string; usage?: AIUsage }>;
 
   /**
    * Returns true when the provider is ready to accept requests.

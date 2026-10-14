@@ -1,0 +1,12 @@
+{
+  "verdict": "APPROVED",
+  "findings": [
+    {
+      "label": "Autoscroll during long streams",
+      "confidence": "likely",
+      "blocking": false,
+      "detail": "The autoscroll effect depends on `messages`, which changes identity on each rAF flush, so it re-runs during streaming. Whether `scrollToEnd` keeps the newest tokens pinned as content height grows during a long reply was not runtime-verified (the coder's note scopes out live RN runtime verification). Confirm on device; if it lags, trigger a scroll from the flush path. Not blocking — UX detail, not a correctness or compile issue."
+    }
+  ],
+  "reviewDoc": "/Users/sunilkumar/Desktop/project/AppLens/AppLens/.agents/tasks/streaming-review.md"
+}

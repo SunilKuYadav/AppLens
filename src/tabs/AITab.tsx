@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import Markdown from 'react-native-markdown-display';
 import { AppLens } from '../core/AppLens';
-import { AIMessage } from '../types/AITypes';
+import { AIMessage, AIUsage } from '../types/AITypes';
 import { AIProvider, createAIProvider } from '../ai/AIProvider';
 import { ContextEngine } from '../ai/ContextEngine';
 import { Badge } from '../components/Badge';
@@ -60,6 +60,23 @@ function formatTimestamp(ms: number): string {
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+/**
+ * Build the compact token-usage footer string, e.g.
+ * "Context ~1,850 · Input 1,920 · Output 310 · Total 2,230".
+ * Context is always prefixed with ~ (it's an estimate); Input/Output/Total get
+ * a ~ prefix too when the counts came from the chars/4 fallback (estimated).
+ */
+function formatTokens(usage: AIUsage): string {
+  const n = (value: number): string => value.toLocaleString('en-US');
+  const p = usage.estimated ? '~' : '';
+  return (
+    `Context ~${n(usage.contextTokens)} · ` +
+    `Input ${p}${n(usage.inputTokens)} · ` +
+    `Output ${p}${n(usage.outputTokens)} · ` +
+    `Total ${p}${n(usage.totalTokens)}`
+  );
 }
 
 // ─── Message bubble ───────────────────────────────────────────────────────────
@@ -145,6 +162,11 @@ function MessageBubble({ message, contextSummary }: BubbleProps): React.JSX.Elem
             {formatTimestamp(message.timestamp)}
           </Text>
         </View>
+
+        {/* Token usage (assistant only, when reported) */}
+        {!isUser && message.usage && (
+          <Text style={styles.tokenLine}>{formatTokens(message.usage)}</Text>
+        )}
       </View>
     </View>
   );
@@ -318,7 +340,7 @@ export function AITab(): React.JSX.Element {
       setMessages((prev) => [...prev, assistantMessage]);
 
       let firstToken = true;
-      const reply = await provider.chatStream(
+      const { text: reply, usage } = await provider.chatStream(
         conversationHistory,
         contextChunks,
         (delta) => {
@@ -339,7 +361,9 @@ export function AITab(): React.JSX.Element {
         rafRef.current = null;
       }
       setMessages((prev) =>
-        prev.map((m) => (m.id === assistantId ? { ...m, content: reply } : m)),
+        prev.map((m) =>
+          m.id === assistantId ? { ...m, content: reply, usage } : m,
+        ),
       );
     } catch (err: unknown) {
       const errorText =
@@ -646,6 +670,11 @@ const styles = StyleSheet.create({
     color: '#00ff88',
     fontSize: 11,
     fontWeight: '600',
+  },
+  tokenLine: {
+    color: '#555',
+    fontSize: 10,
+    marginTop: 4,
   },
 
   // ── Loading ──

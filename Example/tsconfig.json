@@ -1,5 +1,22 @@
 {
   "extends": "@react-native/typescript-config",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      // Editor / tsc type resolution for AppLens.
+      //
+      // This points at the workspace source so types stay in sync while you
+      // develop the library (matches the default APPLENS_SOURCE=local Metro
+      // mode). Metro, not tsc, decides what is bundled at runtime — see
+      // metro.config.js and LOCAL-DEVELOPMENT.md.
+      //
+      // To type-check against the GIT-installed package instead, comment the
+      // two mappings below; TypeScript then resolves from
+      // node_modules/@applens/react-native.
+      "@applens/react-native": ["../src/index.ts"],
+      "@applens/react-native/*": ["../src/*"]
+    }
+  },
   "include": ["**/*.ts", "**/*.tsx"],
   "exclude": ["**/node_modules", "**/Pods"]
 }

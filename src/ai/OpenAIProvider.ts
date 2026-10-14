@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import { AIProvider } from './AIProvider';
-import { AIMessage, ContextChunk } from '../types/AITypes';
+import { AIMessage, AIUsage, ContextChunk } from '../types/AITypes';
+import { estimateTokens } from './tokenEstimate';
 
 /**
  * AI provider that calls OpenAI's chat completions API (model: gpt-4o).
@@ -34,44 +35,56 @@ export class OpenAIProvider implements AIProvider {
   async chat(messages: AIMessage[], context: ContextChunk[]): Promise<string> {
     // Implemented in terms of chatStream with a no-op token callback so both
     // paths share the exact same prompt-building and error-handling logic.
-    return this.chatStream(messages, context, () => {});
+    // chat() ignores usage and returns only the reply text for backward-compat.
+    return (await this.chatStream(messages, context, () => {})).text;
   }
 
   async chatStream(
     messages: AIMessage[],
     context: ContextChunk[],
     onToken: (deltaText: string) => void,
-  ): Promise<string> {
+  ): Promise<{ text: string; usage?: AIUsage }> {
     try {
       const systemPrompt = this.buildSystemPrompt(context);
 
       // Map AIMessage[] to OpenAI message format.
       // We skip 'system' role messages from the conversation itself because
       // the system context is injected separately via the system prompt above.
+      const conversation = messages.filter((m) => m.role !== 'system');
       const openAIMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
         { role: 'system', content: systemPrompt },
-        ...messages
-          .filter((m) => m.role !== 'system')
-          .map(
-            (m): OpenAI.Chat.ChatCompletionMessageParam => ({
-              role: m.role as 'user' | 'assistant',
-              content: m.content,
-            }),
-          ),
+        ...conversation.map(
+          (m): OpenAI.Chat.ChatCompletionMessageParam => ({
+            role: m.role as 'user' | 'assistant',
+            content: m.content,
+          }),
+        ),
       ];
 
       const stream = await this.client.chat.completions.create({
         model: this.model,
         messages: openAIMessages,
         stream: true,
+        // Ask the server to emit a final chunk carrying total token usage.
+        // OpenAI and recent LM Studio builds honour this; older servers omit
+        // it, in which case we fall back to a chars/4 estimate below.
+        stream_options: { include_usage: true },
       });
 
       let fullText = '';
+      let apiUsage: OpenAI.Completions.CompletionUsage | undefined;
       for await (const chunk of stream) {
+        // The usage-only final chunk has an empty `choices` array, so
+        // `choices[0]` is undefined — the optional chaining keeps the delta
+        // loop from crashing on it.
         const delta = chunk.choices[0]?.delta?.content;
         if (delta) {
           fullText += delta;
           onToken(delta);
+        }
+        // Capture the latest non-null usage (present on the final chunk).
+        if (chunk.usage) {
+          apiUsage = chunk.usage;
         }
       }
 
@@ -79,7 +92,37 @@ export class OpenAIProvider implements AIProvider {
         throw new Error('OpenAI returned an empty response.');
       }
 
-      return fullText;
+      // Context tokens are always an estimate, derived from the SAME chunk
+      // serialization that buildSystemPrompt injects into the prompt.
+      const contextTokens = estimateTokens(this.serializeContext(context));
+
+      let usage: AIUsage;
+      if (apiUsage) {
+        // Exact counts from the API.
+        usage = {
+          contextTokens,
+          inputTokens: apiUsage.prompt_tokens,
+          outputTokens: apiUsage.completion_tokens,
+          totalTokens: apiUsage.total_tokens,
+          estimated: false,
+        };
+      } else {
+        // Fallback: estimate input from the full prompt text we sent (system
+        // prompt + the conversation turns) and output from the accumulated reply.
+        const promptText =
+          systemPrompt + conversation.map((m) => m.content).join('\n');
+        const inputTokens = estimateTokens(promptText);
+        const outputTokens = estimateTokens(fullText);
+        usage = {
+          contextTokens,
+          inputTokens,
+          outputTokens,
+          totalTokens: inputTokens + outputTokens,
+          estimated: true,
+        };
+      }
+
+      return { text: fullText, usage };
     } catch (err: unknown) {
       const base = 'AppLens AI: OpenAI request failed';
       if (err instanceof Error) {
@@ -190,13 +233,21 @@ export class OpenAIProvider implements AIProvider {
       return persona + '\n\nNote: No runtime context was captured yet. The app may just have started or no network/log activity has occurred.';
     }
 
-    const contextBlocks = chunks
+    return `${persona}\n\n--- Runtime Context ---\n\n${this.serializeContext(chunks)}`;
+  }
+
+  /**
+   * Serialize context chunks into the exact string that buildSystemPrompt
+   * injects for the context blocks (`[TYPE CONTEXT]\n<content>` joined by
+   * blank lines). Shared so prompt-building and context-token estimation can't
+   * drift apart.
+   */
+  private serializeContext(chunks: ContextChunk[]): string {
+    return chunks
       .map((chunk) => {
         const label = chunk.type.toUpperCase();
         return `[${label} CONTEXT]\n${chunk.content}`;
       })
       .join('\n\n');
-
-    return `${persona}\n\n--- Runtime Context ---\n\n${contextBlocks}`;
   }
 }

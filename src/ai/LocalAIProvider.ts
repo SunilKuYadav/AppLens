@@ -1,5 +1,5 @@
 import { AIProvider } from './AIProvider';
-import { AIMessage, ContextChunk } from '../types/AITypes';
+import { AIMessage, AIUsage, ContextChunk } from '../types/AITypes';
 
 /**
  * Stub AI provider used when no external AI backend is configured.
@@ -26,7 +26,7 @@ export class LocalAIProvider implements AIProvider {
     _context: ContextChunk[],
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     _onToken: (deltaText: string) => void,
-  ): Promise<string> {
+  ): Promise<{ text: string; usage?: AIUsage }> {
     throw new Error(
       'No AI provider configured. Add aiApiKey to AppLens.initialize() to enable AI features.',
     );

@@ -7,6 +7,12 @@
     "ios": "react-native run-ios",
     "lint": "eslint .",
     "start": "react-native start",
+    "start:local": "APPLENS_SOURCE=local react-native start --reset-cache",
+    "start:git": "APPLENS_SOURCE=git react-native start --reset-cache",
+    "android:local": "APPLENS_SOURCE=local react-native run-android",
+    "android:git": "APPLENS_SOURCE=git react-native run-android",
+    "ios:local": "APPLENS_SOURCE=local react-native run-ios",
+    "ios:git": "APPLENS_SOURCE=git react-native run-ios",
     "test": "jest"
   },
   "dependencies": {
